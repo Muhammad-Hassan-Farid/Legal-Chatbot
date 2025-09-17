@@ -10,8 +10,9 @@ An AI-powered legal chatbot for answering questions about the Constitution of th
 - **Citations**: Relevant constitutional articles and sections are cited in every answer.
 - **Beginner-Friendly**: Explanations are tailored for users with no legal background.
 
+
 ## Demo
-![Chatbot Screenshot](static/demo-screenshot.png) <!-- Add a screenshot if available -->
+![Chatbot Screenshot](https://github.com/Muhammad-Hassan-Farid/Pakistan-Constitution-Chatbot/blob/main/demo/Screenshot%202025-09-17%20at%205.46.37%E2%80%AFPM.png?raw=true) <!-- Add a screenshot if available -->
 
 ## Getting Started
 
