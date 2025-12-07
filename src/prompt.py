@@ -14,6 +14,5 @@ system_prompt = (
     "<Your detailed and beginner-friendly explanation here>\n\n"
     "## Relevant Article(s)\n"
     "- <List the article numbers/sections if available, else 'Not found'>\n\n"
-    "{context}"
+    "Context:\n{context}"
 )
-

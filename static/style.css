@@ -1,187 +1,259 @@
-body, html {
-  height: 100%;
-  margin: 0;
-  background: #23272f;
-  font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+/* Pakistani Theme Colors */
+:root {
+    --pak-green: #01411C;
+    --pak-light-green: #1B5E20;
+    --pak-white: #FFFFFF;
+    --pak-cream: #F5F5F5;
+    --pak-green-light: #2E7D32;
 }
 
+/* Global Styles */
+body, html {
+    height: 100%;
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Legacy Chat Styles (for backward compatibility) */
 .chat {
-  margin: 40px auto;
+    margin: 40px auto;
 }
 
 .card {
-  height: 900px;
-  border-radius: 18px !important;
-  background: #101114 !important;
-  box-shadow: 0 4px 32px 0 rgba(0,0,0,0.18);
-  border: none;
+    height: 900px;
+    border-radius: 18px !important;
+    background: var(--pak-white) !important;
+    box-shadow: 0 4px 32px 0 rgba(0,0,0,0.18);
+    border: 2px solid var(--pak-green) !important;
 }
 
 .msg_card_body {
-  overflow-y: auto;
-  scroll-behavior: smooth;
-  padding: 24px 12px 24px 12px;
-  background: #23272f;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+    padding: 24px 12px 24px 12px;
+    background: var(--pak-cream);
 }
 
 .loading-indicator {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin: 10px 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 10px 0;
 }
 
 .fade-in {
-  animation: fadeIn 0.5s;
+    animation: fadeIn 0.5s;
 }
+
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+    from { 
+        opacity: 0; 
+        transform: translateY(20px); 
+    }
+    to { 
+        opacity: 1; 
+        transform: translateY(0); 
+    }
 }
 
 .card-header {
-  border-radius: 18px 18px 0 0 !important;
-  border-bottom: 0 !important;
-  background: #202123 !important;
-  color: #ececf1;
-  padding: 18px 24px 12px 24px;
-  border: none;
+    border-radius: 18px 18px 0 0 !important;
+    border-bottom: 0 !important;
+    background: var(--pak-green) !important;
+    color: var(--pak-white) !important;
+    padding: 18px 24px 12px 24px;
+    border: none;
 }
 
 .card-footer {
-  border-radius: 0 0 18px 18px !important;
-  border-top: 0 !important;
-  background: #202123 !important;
-  padding: 16px 24px 16px 24px;
-  border: none;
+    border-radius: 0 0 18px 18px !important;
+    border-top: 0 !important;
+    background: var(--pak-green) !important;
+    padding: 16px 24px 16px 24px;
+    border: none;
 }
 
 .type_msg {
-  background: #23272f !important;
-  border: none !important;
-  color: #ececf1 !important;
-  height: 48px !important;
-  border-radius: 8px 0 0 8px !important;
-  font-size: 1.08em;
-  padding-left: 16px;
-  outline: none;
-  box-shadow: none !important;
+    background: var(--pak-white) !important;
+    border: 2px solid var(--pak-green) !important;
+    color: #333 !important;
+    height: 48px !important;
+    border-radius: 8px 0 0 8px !important;
+    font-size: 1.08em;
+    padding-left: 16px;
+    outline: none;
+    box-shadow: none !important;
 }
 
 .send_btn {
-  border-radius: 0 8px 8px 0 !important;
-  background: #19c37d !important;
-  border: none !important;
-  color: #fff !important;
-  cursor: pointer;
-  transition: background 0.2s;
+    border-radius: 0 8px 8px 0 !important;
+    background: var(--pak-green) !important;
+    border: none !important;
+    color: var(--pak-white) !important;
+    cursor: pointer;
+    transition: background 0.2s;
 }
+
 .send_btn:hover {
-  background: #15a362 !important;
+    background: var(--pak-light-green) !important;
 }
 
 .user_img {
-  height: 48px;
-  width: 48px;
-  border: 1.5px solid #f5f6fa;
-  background: #fff;
-  object-fit: cover;
+    height: 48px;
+    width: 48px;
+    border: 1.5px solid var(--pak-green);
+    background: var(--pak-white);
+    object-fit: cover;
 }
+
 .user_img_msg {
-  height: 36px;
-  width: 36px;
-  border: 1.5px solid #f5f6fa;
-  background: #fff;
-  object-fit: cover;
+    height: 36px;
+    width: 36px;
+    border: 1.5px solid var(--pak-green);
+    background: var(--pak-white);
+    object-fit: cover;
 }
+
 .img_cont {
-  position: relative;
-  height: 48px;
-  width: 48px;
+    position: relative;
+    height: 48px;
+    width: 48px;
 }
+
 .img_cont_msg {
-  height: 36px;
-  width: 36px;
+    height: 36px;
+    width: 36px;
 }
 
 .user_info span {
-  font-size: 1.2em;
-  color: #ececf1;
-  font-weight: 600;
+    font-size: 1.2em;
+    color: var(--pak-white);
+    font-weight: 600;
 }
+
 .user_info p {
-  font-size: 0.95em;
-  color: #b4b4b4;
-  margin-bottom: 0;
+    font-size: 0.95em;
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 0;
 }
 
 .msg_cotainer {
-  margin-top: auto;
-  margin-bottom: auto;
-  margin-left: 10px;
-  border-radius: 16px 16px 16px 4px;
-  background: #343541;
-  color: #ececf1;
-  padding: 14px 18px 14px 18px;
-  position: relative;
-  max-width: 75%;
-  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
-  font-size: 0.98em;
-  word-break: break-word;
+    margin-top: auto;
+    margin-bottom: auto;
+    margin-left: 10px;
+    border-radius: 16px 16px 16px 4px;
+    background: var(--pak-white);
+    color: #333;
+    padding: 14px 18px 14px 18px;
+    position: relative;
+    max-width: 75%;
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
+    font-size: 0.98em;
+    word-break: break-word;
+    border: 2px solid var(--pak-green);
 }
 
 .msg_cotainer_send {
-  margin-top: auto;
-  margin-bottom: auto;
-  margin-right: 10px;
-  border-radius: 16px 16px 4px 16px;
-  background: #2e7d32;
-  color: #fff;
-  padding: 14px 18px 14px 18px;
-  position: relative;
-  max-width: 75%;
-  box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
-  font-size: 0.98em;
-  word-break: break-word;
+    margin-top: auto;
+    margin-bottom: auto;
+    margin-right: 10px;
+    border-radius: 16px 16px 4px 16px;
+    background: var(--pak-green);
+    color: var(--pak-white);
+    padding: 14px 18px 14px 18px;
+    position: relative;
+    max-width: 75%;
+    box-shadow: 0 2px 8px 0 rgba(0,0,0,0.04);
+    font-size: 0.98em;
+    word-break: break-word;
 }
 
 .msg_time, .msg_time_send {
-  position: absolute;
-  bottom: -18px;
-  font-size: 11px;
-  color: #b4b4b4;
+    position: absolute;
+    bottom: -18px;
+    font-size: 11px;
+    color: #666;
 }
+
 .msg_time {
-  left: 0;
+    left: 0;
 }
+
 .msg_time_send {
-  right: 0;
+    right: 0;
+    color: rgba(255, 255, 255, 0.7);
 }
 
 .online_icon {
-  position: absolute;
-  height: 15px;
-  width: 15px;
-  background-color: #4cd137;
-  border-radius: 50%;
-  bottom: 0.2em;
-  right: 0.4em;
-  border: 1.5px solid white;
+    position: absolute;
+    height: 15px;
+    width: 15px;
+    background-color: #4cd137;
+    border-radius: 50%;
+    bottom: 0.2em;
+    right: 0.4em;
+    border: 1.5px solid var(--pak-white);
 }
 
+/* Responsive Design */
 @media (max-width: 600px) {
-  .chat {
-    margin: 0;
-  }
-  .card {
-    height: 90vh;
-    min-height: 400px;
-  }
-  .msg_card_body {
-    font-size: 0.98em;
-    padding: 12px 2px 12px 2px;
-  }
-  .card-header, .card-footer {
-    padding: 10px 8px;
-  }
+    .chat {
+        margin: 0;
+    }
+    
+    .card {
+        height: 90vh;
+        min-height: 400px;
+    }
+    
+    .msg_card_body {
+        font-size: 0.98em;
+        padding: 12px 2px 12px 2px;
+    }
+    
+    .card-header, .card-footer {
+        padding: 10px 8px;
+    }
+}
+
+/* Markdown Content Styling */
+.msg_cotainer h1,
+.msg_cotainer h2,
+.msg_cotainer h3 {
+    color: var(--pak-green);
+    margin-top: 15px;
+    margin-bottom: 10px;
+}
+
+.msg_cotainer p {
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+
+.msg_cotainer ul,
+.msg_cotainer ol {
+    margin-left: 20px;
+    margin-bottom: 10px;
+}
+
+.msg_cotainer code {
+    background: rgba(1, 65, 28, 0.1);
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+}
+
+.msg_cotainer pre {
+    background: rgba(1, 65, 28, 0.1);
+    padding: 10px;
+    border-radius: 5px;
+    overflow-x: auto;
+    margin: 10px 0;
+}
+
+.msg_cotainer blockquote {
+    border-left: 3px solid var(--pak-green);
+    padding-left: 15px;
+    margin: 10px 0;
+    color: #555;
 }
