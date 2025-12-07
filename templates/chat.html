@@ -91,6 +91,7 @@
             cursor: pointer;
             transition: all 0.3s ease;
             border-left: 3px solid transparent;
+            word-break: break-word;
         }
         
         .chat-history-item:hover {
@@ -99,44 +100,8 @@
         }
         
         .chat-history-item.active {
-            background: rgba(255, 255, 255, 0.25);
+            background: rgba(255, 255, 255, 0.3);
             border-left-color: var(--pak-white);
-        }
-        
-        .chat-history-preview {
-            font-size: 0.85rem;
-            color: rgba(255, 255, 255, 0.8);
-            margin-top: 5px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        
-        .chat-history-time {
-            font-size: 0.75rem;
-            color: rgba(255, 255, 255, 0.6);
-            margin-top: 5px;
-        }
-        
-        .chat-history-actions {
-            display: flex;
-            gap: 10px;
-            margin-top: 8px;
-        }
-        
-        .delete-chat-btn {
-            background: rgba(255, 0, 0, 0.3);
-            color: var(--pak-white);
-            border: none;
-            padding: 4px 8px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.75rem;
-            transition: all 0.3s ease;
-        }
-        
-        .delete-chat-btn:hover {
-            background: rgba(255, 0, 0, 0.5);
         }
         
         /* Main Chat Area */
@@ -144,53 +109,49 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            background: var(--pak-white);
+            background: var(--pak-cream);
         }
         
         .chat-header {
+            padding: 20px;
             background: var(--pak-green);
             color: var(--pak-white);
-            padding: 20px 30px;
             display: flex;
-            align-items: center;
             justify-content: space-between;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
         }
         
         .chat-header h2 {
             margin: 0;
             font-size: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 10px;
         }
         
         .back-to-home {
             color: var(--pak-white);
             text-decoration: none;
-            padding: 8px 15px;
-            border: 1px solid var(--pak-white);
-            border-radius: 5px;
+            font-size: 1.2rem;
+            padding: 8px 12px;
+            border-radius: 4px;
             transition: all 0.3s ease;
         }
         
         .back-to-home:hover {
-            background: var(--pak-white);
-            color: var(--pak-green);
-            text-decoration: none;
+            background: rgba(255, 255, 255, 0.2);
+            color: var(--pak-white);
         }
         
         .messages-container {
             flex: 1;
             overflow-y: auto;
-            padding: 30px;
+            padding: 20px;
             background: var(--pak-cream);
         }
         
         .message {
             display: flex;
-            margin-bottom: 20px;
-            animation: fadeIn 0.3s ease;
+            margin-bottom: 15px;
+            animation: fadeIn 0.3s ease-in;
         }
         
         @keyframes fadeIn {
@@ -208,25 +169,46 @@
             justify-content: flex-end;
         }
         
+        .message.bot {
+            justify-content: flex-start;
+        }
+        
         .message-bubble {
             max-width: 70%;
-            padding: 15px 20px;
-            border-radius: 18px;
+            padding: 12px 15px;
+            border-radius: 12px;
             word-wrap: break-word;
-            position: relative;
         }
         
         .message.user .message-bubble {
             background: var(--pak-green);
             color: var(--pak-white);
-            border-bottom-right-radius: 4px;
         }
         
         .message.bot .message-bubble {
             background: var(--pak-white);
             color: #333;
-            border: 2px solid var(--pak-green);
-            border-bottom-left-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        
+        .audio-player {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f0f0f0;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .audio-player audio {
+            flex: 1;
+            height: 30px;
+            outline: none;
+        }
+        
+        .audio-player audio::-webkit-media-controls-panel {
+            background-color: #f0f0f0;
         }
         
         .message-time {
@@ -235,31 +217,34 @@
             opacity: 0.7;
         }
         
+        /* Typing Indicator */
         .typing-indicator {
             display: none;
-            padding: 15px 20px;
-            background: var(--pak-white);
-            border: 2px solid var(--pak-green);
-            border-radius: 18px;
-            border-bottom-left-radius: 4px;
-            max-width: 70px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
         
         .typing-indicator.active {
             display: block;
         }
         
+        .typing-bubble {
+            background: var(--pak-white);
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            padding: 12px 15px;
+            width: fit-content;
+        }
+        
         .typing-dots {
             display: flex;
-            gap: 5px;
+            gap: 4px;
         }
         
         .typing-dot {
             width: 8px;
             height: 8px;
-            background: var(--pak-green);
             border-radius: 50%;
+            background: #999;
             animation: typing 1.4s infinite;
         }
         
@@ -273,73 +258,83 @@
         
         @keyframes typing {
             0%, 60%, 100% {
+                opacity: 0.5;
                 transform: translateY(0);
             }
             30% {
+                opacity: 1;
                 transform: translateY(-10px);
             }
         }
         
-        .input-container {
-            padding: 20px 30px;
-            background: var(--pak-white);
-            border-top: 2px solid var(--pak-green);
-        }
-        
-        .input-form {
+        /* Chat Input */
+        .chat-input-container {
+            padding: 20px;
+            background: var(--pak-cream);
+            border-top: 1px solid #ddd;
             display: flex;
+            align-items: center;
             gap: 10px;
         }
         
-        .message-input {
+        #userInput {
             flex: 1;
-            padding: 15px 20px;
-            border: 2px solid var(--pak-green);
-            border-radius: 25px;
+            padding: 12px 15px;
+            border: 1px solid #ccc;
+            border-radius: 20px;
             font-size: 1rem;
             outline: none;
-        }
-        
-        .message-input:focus {
-            border-color: var(--pak-light-green);
-            box-shadow: 0 0 0 3px rgba(1, 65, 28, 0.1);
-        }
-        
-        .send-button {
-            padding: 15px 30px;
-            background: var(--pak-green);
-            color: var(--pak-white);
-            border: none;
-            border-radius: 25px;
-            cursor: pointer;
-            font-weight: 600;
             transition: all 0.3s ease;
         }
         
-        .send-button:hover:not(:disabled) {
+        #userInput:focus {
+            border-color: var(--pak-green);
+            box-shadow: 0 0 5px rgba(1, 65, 28, 0.3);
+        }
+        
+        #sendButton, #recordButton {
+            padding: 10px;
+            border: none;
+            border-radius: 50%;
+            background: var(--pak-green);
+            color: var(--pak-white);
+            cursor: pointer;
+            font-size: 1.2rem;
+            width: 50px;
+            height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+        
+        #sendButton:hover, #recordButton:hover {
             background: var(--pak-light-green);
-            transform: translateY(-2px);
+            transform: scale(1.05);
         }
         
-        .send-button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+        #recordButton.recording {
+            background: #d32f2f;
+            animation: pulse 0.6s infinite;
         }
         
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(211, 47, 47, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(211, 47, 47, 0);
+            }
+        }
+        
+        /* Responsive */
         @media (max-width: 768px) {
             .sidebar {
-                position: absolute;
-                left: -300px;
-                z-index: 1000;
-                transition: left 0.3s ease;
-            }
-            
-            .sidebar.open {
-                left: 0;
+                display: none;
             }
             
             .message-bubble {
-                max-width: 85%;
+                max-width: 90%;
             }
         }
     </style>
@@ -373,197 +368,374 @@
                         <div class="message-time" id="welcomeTime"></div>
                     </div>
                 </div>
-            </div>
-            
-            <div class="typing-indicator" id="typingIndicator">
-                <div class="typing-dots">
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
-                    <div class="typing-dot"></div>
+                
+                <div class="typing-indicator" id="typingIndicator">
+                    <div class="typing-bubble">
+                        <div class="typing-dots">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
                 </div>
             </div>
             
-            <div class="input-container">
-                <form class="input-form" id="messageForm">
-                    <input 
-                        type="text" 
-                        class="message-input" 
-                        id="messageInput" 
-                        placeholder="Ask about Pakistan's Constitution..."
-                        autocomplete="off"
-                        required
-                    />
-                    <button type="submit" class="send-button" id="sendButton">
-                        <i class="fas fa-paper-plane"></i> Send
-                    </button>
-                </form>
+            <div class="chat-input-container">
+                <input type="text" id="userInput" placeholder="Type your message or hold to record...">
+                <button id="recordButton" title="Hold to record"><i class="fas fa-microphone"></i></button>
+                <button id="sendButton" title="Send message"><i class="fas fa-paper-plane"></i></button>
             </div>
         </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
     <script>
-        // Initialize
+        // DOM Elements
+        const userInput = document.getElementById('userInput');
+        const sendButton = document.getElementById('sendButton');
+        const recordButton = document.getElementById('recordButton');
+        const messagesContainer = document.getElementById('messagesContainer');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const chatHistoryContainer = document.getElementById('chatHistory');
+        
+        // State
         let currentChatId = null;
-        let chats = JSON.parse(localStorage.getItem('paklegal_chats') || '{}');
-        
-        // Set welcome message time
-        document.getElementById('welcomeTime').textContent = getCurrentTime();
-        
-        // Load chat history
-        loadChatHistory();
-        
-        // Load current chat if exists
-        const urlParams = new URLSearchParams(window.location.search);
-        const chatId = urlParams.get('chat');
-        if (chatId && chats[chatId]) {
-            loadChat(chatId);
-        } else {
-            currentChatId = generateChatId();
-            saveCurrentChat();
-        }
-        
-        // Message form submission
-        document.getElementById('messageForm').addEventListener('submit', async function(e) {
+        let chats = {};
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isSending = false; // Prevent double sends
+        let lastQueryWasVoice = false; // Track if last query was voice input
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadChatsFromStorage();
+            document.getElementById('welcomeTime').textContent = getCurrentTime();
+            startNewChat();
+            
+            // Event listeners
+            sendButton.addEventListener('click', sendMessage);
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+
+            // Voice recording events
+            recordButton.addEventListener('mousedown', startRecording);
+            recordButton.addEventListener('mouseup', stopRecording);
+            recordButton.addEventListener('touchstart', startRecording);
+            recordButton.addEventListener('touchend', stopRecording);
+        });
+
+        // Voice Recording Functions
+        function startRecording(e) {
             e.preventDefault();
-            const input = document.getElementById('messageInput');
-            const message = input.value.trim();
-            if (!message) return;
+            console.log('Start recording called');
             
-            // Add user message
-            addMessage('user', message);
-            input.value = '';
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                console.log('Already recording, ignoring');
+                return;
+            }
             
-            // Show typing indicator
+            audioChunks = []; // Reset audio chunks
+            
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    console.log('Microphone access granted');
+                    mediaRecorder = new MediaRecorder(stream);
+                    
+                    mediaRecorder.ondataavailable = (event) => {
+                        console.log('Data available, size:', event.data.size);
+                        if (event.data.size > 0) {
+                            audioChunks.push(event.data);
+                        }
+                    };
+                    
+                    mediaRecorder.onstart = () => {
+                        console.log('Recording started');
+                        recordButton.classList.add('recording');
+                        recordButton.innerHTML = '<i class="fas fa-stop"></i>';
+                    };
+                    
+                    mediaRecorder.start();
+                })
+                .catch(error => {
+                    console.error('Error accessing microphone:', error);
+                    alert('Unable to access microphone. Please check permissions.\n\nError: ' + error.message);
+                });
+        }
+
+        function stopRecording(e) {
+            e.preventDefault();
+            console.log('Stop recording called, mediaRecorder state:', mediaRecorder ? mediaRecorder.state : 'null');
+            
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.onstop = () => {
+                    console.log('Recording stopped, audio chunks:', audioChunks.length);
+                    recordButton.classList.remove('recording');
+                    recordButton.innerHTML = '<i class="fas fa-microphone"></i>';
+                    
+                    if (audioChunks.length > 0) {
+                        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                        console.log('Audio blob created, size:', audioBlob.size);
+                        sendAudioToServer(audioBlob);
+                    } else {
+                        console.log('No audio chunks recorded');
+                        addMessage('bot', 'No audio recorded. Please try again.');
+                    }
+                };
+                
+                mediaRecorder.stop();
+            }
+        }
+
+        async function sendAudioToServer(audioBlob) {
+            console.log('Sending audio to server:', audioBlob);
+            
+            const formData = new FormData();
+            formData.append('audio', audioBlob, 'recording.wav');
+            
             showTypingIndicator();
             
-            // Disable send button
-            const sendButton = document.getElementById('sendButton');
-            sendButton.disabled = true;
+            try {
+                const csrfToken = getCookie('csrftoken');
+                console.log('CSRF Token:', csrfToken);
+                
+                const response = await fetch('/transcribe/', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                });
+                
+                console.log('Transcription response status:', response.status);
+                const data = await response.json();
+                console.log('Transcription response:', data);
+                
+                hideTypingIndicator();
+                
+                if (data.transcript) {
+                    lastQueryWasVoice = true; // Mark that this query came from voice
+                    userInput.value = data.transcript;
+                    sendMessage();
+                } else if (data.error) {
+                    addMessage('bot', 'Error: ' + data.error);
+                } else {
+                    addMessage('bot', 'Sorry, I could not understand the audio.');
+                }
+            } catch (error) {
+                hideTypingIndicator();
+                console.error('Error transcribing audio:', error);
+                addMessage('bot', 'There was an error processing your voice input: ' + error.message);
+            }
+        }
+        
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Message Functions
+        async function sendMessage() {
+            if (isSending) return; // Prevent double sends
+            
+            const message = userInput.value.trim();
+            if (!message) return;
+            
+            isSending = true;
+            addMessage('user', message);
+            userInput.value = '';
+            showTypingIndicator();
             
             try {
-                // Send to backend
-                const formData = new FormData();
-                formData.append('msg', message);
-                
                 const response = await fetch('/get/', {
                     method: 'POST',
-                    body: formData
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: `msg=${encodeURIComponent(message)}`
                 });
                 
                 const botResponse = await response.text();
                 
-                // Hide typing indicator
                 hideTypingIndicator();
-                
-                // Add bot message
                 addMessage('bot', botResponse);
                 
-                // Save chat
-                saveCurrentChat();
+                // Only synthesize voice if the input was voice
+                if (lastQueryWasVoice) {
+                    playAudio(botResponse);
+                    lastQueryWasVoice = false; // Reset flag
+                }
                 
             } catch (error) {
                 hideTypingIndicator();
-                addMessage('bot', 'Sorry, I encountered an error. Please try again.');
                 console.error('Error:', error);
+                addMessage('bot', 'Sorry, something went wrong.');
             } finally {
-                sendButton.disabled = false;
-                input.focus();
+                isSending = false;
+                saveCurrentChat();
             }
-        });
+        }
+
+        async function playAudio(text) {
+            try {
+                console.log('Requesting audio synthesis for:', text.substring(0, 50));
+                const response = await fetch('/synthesize/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify({ text: text })
+                });
+
+                console.log('Synthesis response status:', response.status);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Synthesis error response:', errorText);
+                    throw new Error('Failed to synthesize speech: ' + response.status);
+                }
+
+                const audioBlob = await response.blob();
+                console.log('Audio blob received, size:', audioBlob.size);
+                
+                const audioUrl = URL.createObjectURL(audioBlob);
+                displayAudioPlayer(audioUrl);
+                
+            } catch (error) {
+                console.error('Error playing audio:', error);
+            }
+        }
+        
+        function displayAudioPlayer(audioUrl) {
+            // Find the last bot message
+            const messages = messagesContainer.querySelectorAll('.message.bot');
+            if (messages.length > 0) {
+                const lastBotMessage = messages[messages.length - 1];
+                const bubble = lastBotMessage.querySelector('.message-bubble');
+                
+                // Create audio player container
+                const audioContainer = document.createElement('div');
+                audioContainer.className = 'audio-player';
+                
+                const audio = document.createElement('audio');
+                audio.controls = true;
+                audio.src = audioUrl;
+                
+                audioContainer.appendChild(audio);
+                bubble.appendChild(audioContainer);
+                
+                console.log('Audio player added to message');
+            }
+        }
         
         function addMessage(type, content) {
-            const messagesContainer = document.getElementById('messagesContainer');
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${type}`;
             
             const bubble = document.createElement('div');
             bubble.className = 'message-bubble';
             
+            const contentDiv = document.createElement('div');
             if (type === 'bot') {
-                // Render markdown for bot messages
-                bubble.innerHTML = marked.parse(content) + 
-                    `<div class="message-time">${getCurrentTime()}</div>`;
+                contentDiv.innerHTML = marked.parse(content);
             } else {
-                bubble.innerHTML = content + 
-                    `<div class="message-time">${getCurrentTime()}</div>`;
+                contentDiv.textContent = content;
             }
             
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'message-time';
+            timeDiv.textContent = getCurrentTime();
+            
+            bubble.appendChild(contentDiv);
+            bubble.appendChild(timeDiv);
             messageDiv.appendChild(bubble);
-            messagesContainer.appendChild(messageDiv);
+            
+            messagesContainer.insertBefore(messageDiv, typingIndicator);
             scrollToBottom();
         }
         
+        // UI Helper Functions
         function showTypingIndicator() {
-            const indicator = document.getElementById('typingIndicator');
-            indicator.classList.add('active');
-            const messagesContainer = document.getElementById('messagesContainer');
-            messagesContainer.appendChild(indicator);
+            typingIndicator.classList.add('active');
             scrollToBottom();
         }
         
         function hideTypingIndicator() {
-            const indicator = document.getElementById('typingIndicator');
-            indicator.classList.remove('active');
-            indicator.remove();
+            typingIndicator.classList.remove('active');
         }
         
         function scrollToBottom() {
-            const container = document.getElementById('messagesContainer');
-            container.scrollTop = container.scrollHeight;
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
         
         function getCurrentTime() {
-            const now = new Date();
-            return now.toLocaleTimeString('en-US', { 
-                hour: '2-digit', 
-                minute: '2-digit',
-                hour12: true 
-            });
+            return new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
         }
         
+        // Chat History and Storage Functions
         function generateChatId() {
-            return 'chat_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            return `chat_${new Date().getTime()}_${Math.random().toString(36).substr(2, 9)}`;
         }
         
         function saveCurrentChat() {
             if (!currentChatId) return;
             
             const messages = [];
-            const messageElements = document.querySelectorAll('.message');
+            const messageElements = messagesContainer.querySelectorAll('.message');
             messageElements.forEach(msg => {
                 const bubble = msg.querySelector('.message-bubble');
+                const content = bubble.querySelector('div:first-child');
                 const time = bubble.querySelector('.message-time')?.textContent || '';
-                const content = bubble.cloneNode(true);
-                content.querySelector('.message-time')?.remove();
                 
                 messages.push({
                     type: msg.classList.contains('user') ? 'user' : 'bot',
                     content: content.textContent.trim(),
-                    html: bubble.innerHTML,
                     time: time
                 });
             });
             
+            const title = messages.find(m => m.type === 'user')?.content.substring(0, 50) || 'New Chat';
+            
             chats[currentChatId] = {
                 id: currentChatId,
-                messages: messages,
-                title: messages.find(m => m.type === 'user')?.content.substring(0, 50) || 'New Chat',
+                title: title,
                 timestamp: new Date().toISOString(),
-                lastUpdate: new Date().toISOString()
+                messages: messages
             };
             
             localStorage.setItem('paklegal_chats', JSON.stringify(chats));
             loadChatHistory();
         }
         
+        function loadChatsFromStorage() {
+            const storedChats = localStorage.getItem('paklegal_chats');
+            if (storedChats) {
+                try {
+                    chats = JSON.parse(storedChats);
+                } catch (e) {
+                    console.error('Error parsing chats:', e);
+                    chats = {};
+                }
+            }
+        }
+        
         function loadChatHistory() {
-            const historyContainer = document.getElementById('chatHistory');
-            historyContainer.innerHTML = '';
-            
-            const sortedChats = Object.values(chats).sort((a, b) => 
-                new Date(b.lastUpdate) - new Date(a.lastUpdate)
-            );
+            chatHistoryContainer.innerHTML = '';
+            const sortedChats = Object.values(chats).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
             
             sortedChats.forEach(chat => {
                 const item = document.createElement('div');
@@ -571,82 +743,31 @@
                 if (chat.id === currentChatId) {
                     item.classList.add('active');
                 }
-                
-                const date = new Date(chat.timestamp);
-                const timeStr = date.toLocaleDateString() + ' ' + 
-                    date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-                
-                item.innerHTML = `
-                    <div style="font-weight: 600; margin-bottom: 5px;">${chat.title}</div>
-                    <div class="chat-history-preview">${chat.messages[0]?.content.substring(0, 60) || 'No messages'}...</div>
-                    <div class="chat-history-time">${timeStr}</div>
-                    <div class="chat-history-actions">
-                        <button class="delete-chat-btn" onclick="deleteChat('${chat.id}')">
-                            <i class="fas fa-trash"></i> Delete
-                        </button>
-                    </div>
-                `;
-                
-                item.addEventListener('click', (e) => {
-                    if (!e.target.closest('.delete-chat-btn')) {
-                        loadChat(chat.id);
-                    }
-                });
-                
-                historyContainer.appendChild(item);
+                item.textContent = chat.title;
+                item.onclick = () => loadChat(chat.id);
+                chatHistoryContainer.appendChild(item);
             });
         }
         
         function loadChat(chatId) {
             if (!chats[chatId]) return;
-            
             currentChatId = chatId;
             const chat = chats[chatId];
             
-            // Clear messages
-            const messagesContainer = document.getElementById('messagesContainer');
             messagesContainer.innerHTML = '';
-            
-            // Load messages
             chat.messages.forEach(msg => {
                 addMessage(msg.type, msg.content);
             });
             
-            // Update URL
-            window.history.pushState({}, '', `/chat?chat=${chatId}`);
-            
-            // Reload history to highlight active
             loadChatHistory();
         }
         
         function startNewChat() {
             currentChatId = generateChatId();
-            const messagesContainer = document.getElementById('messagesContainer');
-            messagesContainer.innerHTML = `
-                <div class="message bot">
-                    <div class="message-bubble">
-                        <div>Assalam-o-Alaikum! I'm PakLegal, your AI assistant for Pakistan's Constitutional Law. How can I help you today?</div>
-                        <div class="message-time">${getCurrentTime()}</div>
-                    </div>
-                </div>
-            `;
-            window.history.pushState({}, '', '/chat');
+            messagesContainer.innerHTML = `<div class="message bot"><div class="message-bubble"><div>Assalam-o-Alaikum! I'm PakLegal, your AI assistant for Pakistan's Constitutional Law. How can I help you today?</div><div class="message-time">${getCurrentTime()}</div></div></div>`;
+            messagesContainer.appendChild(typingIndicator);
             loadChatHistory();
-        }
-        
-        function deleteChat(chatId) {
-            if (confirm('Are you sure you want to delete this chat?')) {
-                delete chats[chatId];
-                localStorage.setItem('paklegal_chats', JSON.stringify(chats));
-                
-                if (chatId === currentChatId) {
-                    startNewChat();
-                } else {
-                    loadChatHistory();
-                }
-            }
         }
     </script>
 </body>
 </html>
-

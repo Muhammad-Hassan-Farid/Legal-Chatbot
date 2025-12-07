@@ -3,6 +3,12 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from typing import List
 from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
+import logging
+
+logger = logging.getLogger(__name__)
+
+# Global cache for embeddings to avoid reloading
+_embeddings_cache = None
 
 
 # Documents loader
@@ -39,8 +45,17 @@ def text_split(docs):
 # Downloading Embedding Model for dense numerical vectors that capture meaning.
 def download_embeddings():
     """
-    Download and return huggingface embedding model.
+    Download and return huggingface embedding model with caching.
+    Caches the model globally to avoid reloading on every request.
     """
+    global _embeddings_cache
+    
+    if _embeddings_cache is not None:
+        logger.info("Using cached embeddings model")
+        return _embeddings_cache
+    
     model_name = "intfloat/multilingual-e5-large"
-    embeddings = HuggingFaceEmbeddings(model_name=model_name)
-    return embeddings
+    logger.info(f"Loading embeddings model: {model_name}")
+    _embeddings_cache = HuggingFaceEmbeddings(model_name=model_name)
+    logger.info("Embeddings model loaded and cached")
+    return _embeddings_cache
