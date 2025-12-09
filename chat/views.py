@@ -9,6 +9,10 @@ import whisper
 from gtts import gTTS
 import io
 import os
+from langdetect import detect, DetectorFactory
+
+# Set seed for consistent language detection
+DetectorFactory.seed = 0
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +27,20 @@ def chat_page(request):
     return render(request, 'chat.html')
 
 
+def detect_language(text):
+    """
+    Detect the language of the input text.
+    Returns language code: 'ur' for Urdu, 'en' for English, etc.
+    """
+    try:
+        lang = detect(text)
+        logger.info(f"Detected language: {lang}")
+        return lang
+    except Exception as e:
+        logger.warning(f"Language detection failed: {str(e)}, defaulting to English")
+        return 'en'
+
+
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
 def chat_api(request):
@@ -31,19 +49,24 @@ def chat_api(request):
         if request.method == 'POST':
             # Handle form data
             user_input = request.POST.get('msg', '')
+            input_language = request.POST.get('lang', 'en')  # Get language from frontend
         else:
             # Handle GET request (if needed)
             user_input = request.GET.get('msg', '')
+            input_language = request.GET.get('lang', 'en')
         
         if not user_input:
             return HttpResponse('No message provided', status=400)
         
+        # Store language in request for synthesize endpoint
+        request.session['input_language'] = input_language
+        
         # Get RAG chain and invoke
-        logger.info(f"Processing user input: {user_input}")
+        logger.info(f"Processing user input in language: {input_language}")
         rag_chain = get_rag_chain()
         response = rag_chain.invoke({"input": user_input})
         
-        logger.info(f"RAG response type: {type(response)}, value: {response}")
+        logger.info(f"RAG response type: {type(response)}, language: {input_language}")
         
         # Handle response - could be string or dict
         if isinstance(response, dict):
@@ -51,18 +74,21 @@ def chat_api(request):
         else:
             answer = str(response)
         
-        # Return plain text response
-        return HttpResponse(answer, content_type='text/plain')
+        # Return response with language info
+        return JsonResponse({
+            'answer': answer,
+            'language': input_language
+        })
 
     except Exception as e:
         logger.exception(f"Error in chat_api: {str(e)}")
-        return HttpResponse(f'Error: {str(e)}', status=500, content_type='text/plain')
+        return JsonResponse({'error': f'Error: {str(e)}'}, status=500)
 
 
 @csrf_exempt
 @require_http_methods(["POST"])
 def transcribe_audio(request):
-    """API endpoint for transcribing audio"""
+    """API endpoint for transcribing audio with language detection"""
     logger.info("Transcribe audio endpoint called")
     
     if 'audio' not in request.FILES:
@@ -85,16 +111,31 @@ def transcribe_audio(request):
         logger.info("Loading Whisper model...")
         model = whisper.load_model("base")
         logger.info("Whisper model loaded, transcribing...")
+        
+        # Whisper with language detection
         result = model.transcribe(temp_filename)
         transcript = result["text"].strip()
+        detected_lang = result.get("language", "en")  # Get detected language from Whisper
         
-        logger.info(f"Transcription successful: {transcript}")
+        # Map Whisper language code to language code
+        lang_map = {
+            'urdu': 'ur',
+            'ur': 'ur',
+            'english': 'en',
+            'en': 'en',
+        }
+        detected_lang = lang_map.get(detected_lang.lower(), detected_lang)
+        
+        logger.info(f"Transcription successful: {transcript}, detected language: {detected_lang}")
         
         # Clean up temp file
         if os.path.exists(temp_filename):
             os.remove(temp_filename)
         
-        return JsonResponse({'transcript': transcript})
+        return JsonResponse({
+            'transcript': transcript,
+            'language': detected_lang
+        })
 
     except Exception as e:
         logger.error(f"Error during transcription: {str(e)}", exc_info=True)
@@ -104,7 +145,7 @@ def transcribe_audio(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def synthesize_speech(request):
-    """API endpoint for synthesizing speech"""
+    """API endpoint for synthesizing speech in the detected language"""
     logger.info("Synthesize speech endpoint called")
     
     try:
@@ -113,15 +154,36 @@ def synthesize_speech(request):
         
         data = json.loads(body)
         text = data.get('text', '').strip()
+        language = data.get('language', 'en')  # Get language from frontend
 
         if not text:
             logger.error("No text provided for synthesis")
             return JsonResponse({'error': 'No text provided'}, status=400)
 
-        logger.info(f"Generating speech for text: {text[:50]}...")
+        logger.info(f"Generating speech for text in language: {language}")
+        logger.info(f"Text: {text[:50]}...")
         
-        # Generate speech using gTTS
-        tts = gTTS(text=text, lang='en', slow=False)
+        # Map language codes to gTTS language codes
+        lang_map = {
+            'ur': 'ur',      # Urdu
+            'urdu': 'ur',
+            'en': 'en',      # English
+            'english': 'en',
+            'hi': 'hi',      # Hindi (optional)
+            'ps': 'ps',      # Pashto (optional)
+            'pa': 'pa',      # Punjabi (optional)
+        }
+        
+        tts_lang = lang_map.get(language.lower(), 'en')
+        
+        logger.info(f"Using TTS language: {tts_lang}")
+        
+        # Generate speech using gTTS in detected language
+        try:
+            tts = gTTS(text=text, lang=tts_lang, slow=False)
+        except Exception as e:
+            logger.warning(f"TTS failed for language {tts_lang}, falling back to English: {str(e)}")
+            tts = gTTS(text=text, lang='en', slow=False)
         
         # Save to a memory file
         mp3_fp = io.BytesIO()
@@ -129,7 +191,7 @@ def synthesize_speech(request):
         mp3_fp.seek(0)
         
         audio_bytes = mp3_fp.getvalue()
-        logger.info(f"Speech synthesis successful, audio size: {len(audio_bytes)} bytes")
+        logger.info(f"Speech synthesis successful, audio size: {len(audio_bytes)} bytes, language: {tts_lang}")
         
         response = HttpResponse(audio_bytes, content_type='audio/mpeg')
         response['Content-Disposition'] = 'inline; filename="response.mp3"'

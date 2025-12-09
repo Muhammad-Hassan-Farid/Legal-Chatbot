@@ -740,6 +740,7 @@
         let audioChunks = [];
         let isSending = false; // Prevent double sends
         let lastQueryWasVoice = false; // Track if last query was voice input
+        let inputLanguage = 'en'; // Track detected input language
 
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
@@ -852,6 +853,8 @@
                 
                 if (data.transcript) {
                     lastQueryWasVoice = true; // Mark that this query came from voice
+                    inputLanguage = data.language || 'en'; // Store detected language
+                    console.log('Detected input language:', inputLanguage);
                     userInput.value = data.transcript;
                     sendMessage();
                 } else if (data.error) {
@@ -900,18 +903,21 @@
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'X-CSRFToken': getCookie('csrftoken')
                     },
-                    body: `msg=${encodeURIComponent(message)}`
+                    body: `msg=${encodeURIComponent(message)}&lang=${encodeURIComponent(inputLanguage)}`
                 });
                 
-                const botResponse = await response.text();
+                const data = await response.json();
+                const botResponse = data.answer || data;
+                const responseLanguage = data.language || inputLanguage;
                 
                 hideTypingIndicator();
                 addMessage('bot', botResponse);
                 
                 // Only synthesize voice if the input was voice
                 if (lastQueryWasVoice) {
-                    playAudio(botResponse);
+                    playAudio(botResponse, responseLanguage);
                     lastQueryWasVoice = false; // Reset flag
+                    inputLanguage = 'en'; // Reset language for next query
                 }
                 
             } catch (error) {
@@ -924,16 +930,19 @@
             }
         }
 
-        async function playAudio(text) {
+        async function playAudio(text, language = 'en') {
             try {
-                console.log('Requesting audio synthesis for:', text.substring(0, 50));
+                console.log('Requesting audio synthesis for:', text.substring(0, 50), 'in language:', language);
                 const response = await fetch('/synthesize/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken')
                     },
-                    body: JSON.stringify({ text: text })
+                    body: JSON.stringify({ 
+                        text: text,
+                        language: language
+                    })
                 });
 
                 console.log('Synthesis response status:', response.status);
@@ -945,7 +954,7 @@
                 }
 
                 const audioBlob = await response.blob();
-                console.log('Audio blob received, size:', audioBlob.size);
+                console.log('Audio blob received, size:', audioBlob.size, 'language:', language);
                 
                 const audioUrl = URL.createObjectURL(audioBlob);
                 displayAudioPlayer(audioUrl);
