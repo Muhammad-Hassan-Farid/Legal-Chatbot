@@ -10,11 +10,75 @@ from gtts import gTTS
 import io
 import os
 from langdetect import detect, DetectorFactory
+import re
+from html.parser import HTMLParser
 
 # Set seed for consistent language detection
 DetectorFactory.seed = 0
 
 logger = logging.getLogger(__name__)
+
+# Global cache for Whisper model
+_whisper_model = None
+_whisper_model_lock = None
+
+
+def get_whisper_model():
+    """
+    Get cached Whisper model. Lazy loads on first use.
+    Uses threading lock to ensure thread-safe loading.
+    """
+    global _whisper_model, _whisper_model_lock
+    
+    if _whisper_model_lock is None:
+        import threading
+        _whisper_model_lock = threading.Lock()
+    
+    if _whisper_model is None:
+        with _whisper_model_lock:
+            if _whisper_model is None:  # Double check
+                logger.info("Lazy loading Whisper model for first time...")
+                _whisper_model = whisper.load_model("base", device="cpu")
+                logger.info("Whisper model loaded and cached")
+    
+    return _whisper_model
+
+
+def extract_text_from_markdown(text):
+    """
+    Extract plain text from markdown response.
+    Removes markdown syntax and HTML tags to reduce TTS synthesis time.
+    """
+    # Remove markdown code blocks
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    
+    # Remove inline code formatting
+    text = re.sub(r'`([^`]*)`', r'\1', text)
+    
+    # Remove bold/italic markdown
+    text = re.sub(r'\*\*([^\*]*)\*\*', r'\1', text)
+    text = re.sub(r'\*([^\*]*)\*', r'\1', text)
+    text = re.sub(r'__([^_]*)__', r'\1', text)
+    text = re.sub(r'_([^_]*)_', r'\1', text)
+    
+    # Remove markdown links
+    text = re.sub(r'\[([^\]]*)\]\([^\)]*\)', r'\1', text)
+    
+    # Remove markdown headers
+    text = re.sub(r'^#+\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove markdown blockquotes
+    text = re.sub(r'^>\s+', '', text, flags=re.MULTILINE)
+    
+    # Remove markdown lists
+    text = re.sub(r'^\s*[-*+]\s+', '', text, flags=re.MULTILINE)
+    text = re.sub(r'^\s*\d+\.\s+', '', text, flags=re.MULTILINE)
+    
+    # Clean up extra whitespace
+    text = re.sub(r'\n\n+', '\n', text)
+    text = text.strip()
+    
+    return text
 
 
 def landing(request):
@@ -44,35 +108,50 @@ def detect_language(text):
 @csrf_exempt
 @require_http_methods(["POST", "GET"])
 def chat_api(request):
-    """API endpoint for chat responses"""
+    """
+    API endpoint for chat responses.
+    Optimized for low latency: returns response immediately with first synthesis chunk.
+    """
     try:
         if request.method == 'POST':
             # Handle form data
             user_input = request.POST.get('msg', '')
-            input_language = request.POST.get('lang', 'en')  # Get language from frontend
+            input_language = request.POST.get('lang', 'en')
+            voice_response = request.POST.get('voice', 'false').lower() == 'true'  # Whether to synthesize voice
         else:
-            # Handle GET request (if needed)
+            # Handle GET request
             user_input = request.GET.get('msg', '')
             input_language = request.GET.get('lang', 'en')
+            voice_response = request.GET.get('voice', 'false').lower() == 'true'
         
         if not user_input:
             return HttpResponse('No message provided', status=400)
         
-        # Store language in request for synthesize endpoint
-        request.session['input_language'] = input_language
+        logger.info(f"Processing user input in language: {input_language}, voice_response: {voice_response}")
         
         # Get RAG chain and invoke
-        logger.info(f"Processing user input in language: {input_language}")
         rag_chain = get_rag_chain()
         response = rag_chain.invoke({"input": user_input})
-        
-        logger.info(f"RAG response type: {type(response)}, language: {input_language}")
         
         # Handle response - could be string or dict
         if isinstance(response, dict):
             answer = response.get("answer", str(response))
         else:
             answer = str(response)
+        
+        logger.info(f"RAG response generated, length: {len(answer)}, language: {input_language}")
+        
+        # If voice response requested, return early with text + URL for async synthesis
+        if voice_response:
+            # Extract plain text for TTS (will be synthesized on frontend or async)
+            plain_text = extract_text_from_markdown(answer)
+            
+            return JsonResponse({
+                'answer': answer,
+                'plain_text': plain_text,  # For voice synthesis
+                'language': input_language,
+                'synthesize_url': '/synthesize/'  # Frontend will use this for async synthesis
+            })
         
         # Return response with language info
         return JsonResponse({
@@ -88,7 +167,10 @@ def chat_api(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def transcribe_audio(request):
-    """API endpoint for transcribing audio with language detection"""
+    """
+    API endpoint for transcribing audio with language detection.
+    Optimized: Uses cached Whisper model for faster repeated transcriptions.
+    """
     logger.info("Transcribe audio endpoint called")
     
     if 'audio' not in request.FILES:
@@ -107,30 +189,43 @@ def transcribe_audio(request):
         
         logger.info(f"Audio file saved to: {temp_filename}")
 
-        # Transcribe using Whisper
-        logger.info("Loading Whisper model...")
-        model = whisper.load_model("base")
-        logger.info("Whisper model loaded, transcribing...")
+        # Transcribe using cached Whisper model
+        logger.info("Getting cached Whisper model...")
+        model = get_whisper_model()
+        logger.info("Whisper model ready, transcribing...")
         
-        # Whisper with language detection
-        result = model.transcribe(temp_filename)
+        # Whisper with language detection - optimized settings
+        # Use language detection without forcing a language
+        result = model.transcribe(
+            temp_filename,
+            language=None,  # Auto-detect language
+            fp16=False,     # Use fp32 for stability, can switch to True for speed
+            verbose=False   # Reduce logging overhead
+        )
         transcript = result["text"].strip()
-        detected_lang = result.get("language", "en")  # Get detected language from Whisper
+        detected_lang = result.get("language", "en")
         
-        # Map Whisper language code to language code
+        # Map Whisper language code to standard code
         lang_map = {
             'urdu': 'ur',
             'ur': 'ur',
             'english': 'en',
             'en': 'en',
+            'hindi': 'hi',
+            'hi': 'hi',
+            'pashto': 'ps',
+            'ps': 'ps',
+            'punjabi': 'pa',
+            'pa': 'pa',
         }
         detected_lang = lang_map.get(detected_lang.lower(), detected_lang)
         
-        logger.info(f"Transcription successful: {transcript}, detected language: {detected_lang}")
+        logger.info(f"Transcription successful: {transcript[:50]}..., language: {detected_lang}")
         
         # Clean up temp file
         if os.path.exists(temp_filename):
             os.remove(temp_filename)
+            logger.info(f"Cleaned up temp file: {temp_filename}")
         
         return JsonResponse({
             'transcript': transcript,
@@ -145,23 +240,32 @@ def transcribe_audio(request):
 @csrf_exempt
 @require_http_methods(["POST"])
 def synthesize_speech(request):
-    """API endpoint for synthesizing speech in the detected language"""
+    """
+    API endpoint for synthesizing speech in the detected language.
+    Optimized: Uses plain text input to reduce synthesis time.
+    """
     logger.info("Synthesize speech endpoint called")
     
     try:
         body = request.body.decode('utf-8')
-        logger.info(f"Request body: {body[:100]}")
-        
         data = json.loads(body)
-        text = data.get('text', '').strip()
-        language = data.get('language', 'en')  # Get language from frontend
+        
+        # Accept either 'text' or 'plain_text' for flexibility
+        text = data.get('plain_text') or data.get('text', '')
+        text = text.strip()
+        language = data.get('language', 'en')
 
         if not text:
             logger.error("No text provided for synthesis")
             return JsonResponse({'error': 'No text provided'}, status=400)
 
-        logger.info(f"Generating speech for text in language: {language}")
-        logger.info(f"Text: {text[:50]}...")
+        # Limit text length for faster synthesis (2000 chars ~= 2-3 min audio)
+        max_length = 2000
+        if len(text) > max_length:
+            logger.info(f"Truncating text from {len(text)} to {max_length} chars for synthesis")
+            text = text[:max_length].rsplit(' ', 1)[0] + '...'
+        
+        logger.info(f"Generating speech for {len(text)} chars in language: {language}")
         
         # Map language codes to gTTS language codes
         lang_map = {
@@ -169,32 +273,37 @@ def synthesize_speech(request):
             'urdu': 'ur',
             'en': 'en',      # English
             'english': 'en',
-            'hi': 'hi',      # Hindi (optional)
-            'ps': 'ps',      # Pashto (optional)
-            'pa': 'pa',      # Punjabi (optional)
+            'hi': 'hi',      # Hindi
+            'hindi': 'hi',
+            'ps': 'ps',      # Pashto
+            'pashto': 'ps',
+            'pa': 'pa',      # Punjabi
+            'punjabi': 'pa',
         }
         
         tts_lang = lang_map.get(language.lower(), 'en')
-        
         logger.info(f"Using TTS language: {tts_lang}")
         
         # Generate speech using gTTS in detected language
         try:
+            # Use slow=False for faster synthesis
             tts = gTTS(text=text, lang=tts_lang, slow=False)
         except Exception as e:
             logger.warning(f"TTS failed for language {tts_lang}, falling back to English: {str(e)}")
             tts = gTTS(text=text, lang='en', slow=False)
+            tts_lang = 'en'
         
-        # Save to a memory file
+        # Save to memory file
         mp3_fp = io.BytesIO()
         tts.write_to_fp(mp3_fp)
         mp3_fp.seek(0)
         
         audio_bytes = mp3_fp.getvalue()
-        logger.info(f"Speech synthesis successful, audio size: {len(audio_bytes)} bytes, language: {tts_lang}")
+        logger.info(f"Speech synthesis successful: {len(audio_bytes)} bytes in language: {tts_lang}")
         
         response = HttpResponse(audio_bytes, content_type='audio/mpeg')
         response['Content-Disposition'] = 'inline; filename="response.mp3"'
+        response['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         return response
 
     except json.JSONDecodeError as e:

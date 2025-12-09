@@ -71,47 +71,21 @@ def get_rag_chain():
         )
         
         # Retrieve Top 3 Relevant documents from VectorStore
+        # Increased from k=5 to k=8 for better coverage and recall
+        # This helps capture more relevant sections, especially for multi-topic queries
         _retriever = retrieved_docs.as_retriever(
-            search_type="similarity", search_kwargs={"k": 5}
+            search_type="similarity", search_kwargs={"k": 8}
         )
-        logger.info("Retriever initialized")
+        logger.info("Retriever initialized with k=8 for better coverage")
         
         # Chatmodel Loading
         logger.info("Loading ChatOpenAI model...")
         chatModel = ChatOpenAI(model="gpt-4o")
         
-        # Create a system prompt template that includes context
-        system_prompt_template = (
-    "You are PakLegal, an expert AI assistant specializing in Pakistan's Constitutional Law. "
-    "You have access to the Constitution of the Islamic Republic of Pakistan and related legal documents.\n\n"
-    "Your core responsibilities:\n"
-    "1. Provide accurate, authoritative answers based exclusively on the Constitution of Pakistan\n"
-    "2. Cite specific Articles, Sections, and Clauses when referencing the Constitution\n"
-    "3. Explain complex legal concepts in clear, beginner-friendly language without sacrificing accuracy\n"
-    "4. Maintain impartiality and objectivity in all responses\n"
-    "5. Acknowledge limitations when information is not available in the provided context\n\n"
-    "Response guidelines:\n"
-    "- Use markdown formatting with headings, bullet points, and numbered lists for clarity\n"
-    "- Break down complex legal terminology with plain language explanations\n"
-    "- Provide relevant examples or analogies when helpful\n"
-    "- Always cite the specific Article or Section being discussed\n"
-    "- If the retrieved context doesn't contain sufficient information, respond: 'I don't have information about this in the provided constitutional documents.'\n"
-    "- Never provide legal advice; focus on explaining what the Constitution says\n\n"
-    "Response format:\n"
-    "# Answer\n"
-    "<Detailed explanation based on the provided context>\n\n"
-    "## Relevant Constitutional References\n"
-    "- Article X, Section Y: <Brief description>\n\n"
-    "## Key Points\n"
-    "- <Bullet point 1>\n"
-    "- <Bullet point 2>\n\n"
-    "Context from the Constitution:\n"
-    "{context}"
-)
-        
+        # Use the improved system prompt from src/prompt.py
         prompt = ChatPromptTemplate.from_messages(
             [
-                ("system", system_prompt_template),
+                ("system", system_prompt),
                 ("human", "{input}"),
             ]
         )

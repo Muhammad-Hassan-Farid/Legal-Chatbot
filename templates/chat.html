@@ -897,27 +897,37 @@
             showTypingIndicator();
             
             try {
+                // Flag to request voice synthesis if input was voice
+                const needsVoice = lastQueryWasVoice ? 'true' : 'false';
+                
                 const response = await fetch('/get/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/x-www-form-urlencoded',
                         'X-CSRFToken': getCookie('csrftoken')
                     },
-                    body: `msg=${encodeURIComponent(message)}&lang=${encodeURIComponent(inputLanguage)}`
+                    body: `msg=${encodeURIComponent(message)}&lang=${encodeURIComponent(inputLanguage)}&voice=${needsVoice}`
                 });
                 
                 const data = await response.json();
                 const botResponse = data.answer || data;
                 const responseLanguage = data.language || inputLanguage;
+                const plainText = data.plain_text || '';  // Plain text for faster TTS synthesis
                 
                 hideTypingIndicator();
                 addMessage('bot', botResponse);
                 
-                // Only synthesize voice if the input was voice
-                if (lastQueryWasVoice) {
-                    playAudio(botResponse, responseLanguage);
-                    lastQueryWasVoice = false; // Reset flag
-                    inputLanguage = 'en'; // Reset language for next query
+                // Optimized: Synthesize voice asynchronously without blocking UI
+                if (lastQueryWasVoice && plainText) {
+                    // Async synthesis - doesn't block UI
+                    playAudioAsync(plainText, responseLanguage);
+                    lastQueryWasVoice = false;
+                    inputLanguage = 'en';
+                } else if (lastQueryWasVoice) {
+                    // Fallback: synthesize full markdown if plain_text not available
+                    playAudioAsync(botResponse, responseLanguage);
+                    lastQueryWasVoice = false;
+                    inputLanguage = 'en';
                 }
                 
             } catch (error) {
@@ -930,9 +940,12 @@
             }
         }
 
-        async function playAudio(text, language = 'en') {
+        // Async audio synthesis - doesn't block user interaction
+        async function playAudioAsync(text, language = 'en') {
             try {
-                console.log('Requesting audio synthesis for:', text.substring(0, 50), 'in language:', language);
+                console.log('🔊 Async audio synthesis started for', text.length, 'chars in', language);
+                const startTime = Date.now();
+                
                 const response = await fetch('/synthesize/', {
                     method: 'POST',
                     headers: {
@@ -940,28 +953,32 @@
                         'X-CSRFToken': getCookie('csrftoken')
                     },
                     body: JSON.stringify({ 
-                        text: text,
+                        plain_text: text,  // Use plain_text for faster synthesis
                         language: language
                     })
                 });
 
-                console.log('Synthesis response status:', response.status);
-                
                 if (!response.ok) {
                     const errorText = await response.text();
-                    console.error('Synthesis error response:', errorText);
+                    console.error('❌ Synthesis error:', errorText);
                     throw new Error('Failed to synthesize speech: ' + response.status);
                 }
 
                 const audioBlob = await response.blob();
-                console.log('Audio blob received, size:', audioBlob.size, 'language:', language);
+                const elapsedTime = Date.now() - startTime;
+                console.log('✅ Audio blob received:', audioBlob.size, 'bytes in', elapsedTime, 'ms');
                 
                 const audioUrl = URL.createObjectURL(audioBlob);
                 displayAudioPlayer(audioUrl);
                 
             } catch (error) {
-                console.error('Error playing audio:', error);
+                console.error('❌ Error in async audio synthesis:', error);
             }
+        }
+
+        // Legacy synchronous function - kept for compatibility
+        async function playAudio(text, language = 'en') {
+            return playAudioAsync(text, language);
         }
         
         function displayAudioPlayer(audioUrl) {
