@@ -19,6 +19,10 @@ _rag_chain = None
 _embedding = None
 _retriever = None
 
+# Comparison bot components
+_comparison_chain = None
+_comparison_retriever = None
+
 
 def format_docs(docs):
     """Format retrieved documents into a single string."""
@@ -110,4 +114,90 @@ def get_rag_chain():
         
     except Exception as e:
         logger.exception(f"Error initializing RAG chain: {str(e)}")
+        raise
+
+
+# Alternative system prompt for comparison bot (more concise, technical focus)
+comparison_bot_prompt = """You are LegalBot, a concise legal reference assistant for Pakistan's laws. Your role is to provide brief, technical explanations of legal concepts with minimal elaboration.
+
+Your approach:
+- Provide direct, concise answers focusing on key legal points
+- Cite exact sections and articles
+- Avoid lengthy explanations; focus on facts
+- Use technical legal terminology
+- Include relevant case law references if found in documents
+- Emphasize practical legal implications
+
+Retrieved legal context:
+{context}
+
+Answer the question based ONLY on the retrieved legal documents, being concise and direct."""
+
+
+def get_comparison_chain():
+    """
+    Get or initialize the comparison RAG chain.
+    This provides an alternative perspective for comparison.
+    Uses singleton pattern to avoid reinitializing on every request.
+    """
+    global _comparison_chain, _embedding, _comparison_retriever
+    
+    if _comparison_chain is not None:
+        logger.info("Returning cached comparison chain")
+        return _comparison_chain
+    
+    try:
+        logger.info("Initializing comparison RAG chain...")
+        
+        # Use existing embedding
+        if _embedding is None:
+            logger.info("Downloading embeddings for comparison chain...")
+            _embedding = download_embeddings()
+        
+        # Use same ChromaDB retriever
+        if _comparison_retriever is None:
+            collection_name = "constitution-chatbot"
+            persist_directory = "./chroma_db"
+            retrieved_docs = Chroma(
+                collection_name=collection_name,
+                embedding_function=_embedding,
+                persist_directory=persist_directory
+            )
+            
+            # Use k=6 for slightly different retrieval coverage
+            _comparison_retriever = retrieved_docs.as_retriever(
+                search_type="similarity", search_kwargs={"k": 6}
+            )
+            logger.info("Comparison retriever initialized with k=6")
+        
+        # Use GPT-4o for consistency
+        chatModel = ChatOpenAI(model="gpt-4o")
+        
+        # Use alternative prompt
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", comparison_bot_prompt),
+                ("human", "{input}"),
+            ]
+        )
+        
+        # Build comparison chain
+        def extract_input(x):
+            return x["input"] if isinstance(x, dict) else x
+        
+        _comparison_chain = (
+            RunnableParallel({
+                "context": RunnableLambda(extract_input) | _comparison_retriever | format_docs,
+                "input": RunnableLambda(extract_input)
+            })
+            | prompt
+            | chatModel
+            | StrOutputParser()
+        )
+        
+        logger.info("Comparison RAG chain initialized successfully")
+        return _comparison_chain
+        
+    except Exception as e:
+        logger.exception(f"Error initializing comparison chain: {str(e)}")
         raise
