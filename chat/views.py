@@ -584,6 +584,24 @@ def scrape_qanoonmate_response(query):
         
         # Try to find the response message with improved selectors
         response_text = None
+
+        suggestion_keywords = [
+            "try asking", "business registration", "tenant rights", "intellectual property",
+            "employment law", "legal requirements", "protect my intellectual property",
+            "qanoonmate can make mistakes", "global search", "chat mode"
+        ]
+
+        def looks_like_suggestion(text: str) -> bool:
+            lowered = text.lower()
+            if any(keyword in lowered for keyword in suggestion_keywords):
+                return True
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            if lowered.startswith("try asking"):
+                return True
+            if len(lines) >= 3 and all(len(line) < 80 for line in lines):
+                # Short bulleted style suggestions
+                return True
+            return False
         
         # Strategy 1: Look for bot messages in chat
         response_selectors = [
@@ -613,6 +631,9 @@ def scrape_qanoonmate_response(query):
                         text = elem.text.strip()
                         # Skip if it's the same as the query we just sent
                         if text and len(text) > 10 and text != query:
+                            if looks_like_suggestion(text):
+                                logger.debug("Skipping suggestion-like text from XPath match")
+                                continue
                             response_text = text
                             logger.info(f"Found response with selector: {selector}")
                             logger.info(f"Response length: {len(response_text)} chars")
@@ -643,6 +664,9 @@ def scrape_qanoonmate_response(query):
                         for elem in reversed(elements):
                             text = elem.text.strip()
                             if text and len(text) > 10 and text != query:
+                                if looks_like_suggestion(text):
+                                    logger.debug("Skipping suggestion-like text from CSS match")
+                                    continue
                                 response_text = text
                                 logger.info(f"Found response with CSS selector: {selector}")
                                 break
@@ -703,7 +727,10 @@ def scrape_qanoonmate_response(query):
                     # Find first substantial paragraph that's not UI and not the query
                     for para in paragraphs:
                         is_ui_text = any(keyword in para for keyword in ui_keywords)
-                        # Skip very short responses (< 50 chars) as they're likely suggestions
+                        if looks_like_suggestion(para):
+                            logger.debug("Skipping suggestion paragraph in fallback")
+                            continue
+                        # Skip very short responses (< 60 chars) as they're likely suggestions
                         if not is_ui_text and len(para) > 60 and para != query:
                             response_text = para
                             logger.info(f"Found non-UI text: {len(response_text)} chars")
@@ -711,7 +738,7 @@ def scrape_qanoonmate_response(query):
                     
                     # If still nothing, use the longest paragraph that isn't the query
                     if not response_text:
-                        valid_paras = [p for p in paragraphs if p != query and len(p) > 50]
+                        valid_paras = [p for p in paragraphs if p != query and len(p) > 50 and not looks_like_suggestion(p)]
                         if valid_paras:
                             response_text = max(valid_paras, key=len)
                             logger.info(f"Using longest paragraph: {len(response_text)} chars")
@@ -731,6 +758,12 @@ def scrape_qanoonmate_response(query):
         # Replace multiple spaces with single space
         response_text = ' '.join(response_text.split())
         
+        # Only reject if it's very short AND looks like a suggestion
+        # (to avoid false positives on legitimate multi-line legal responses)
+        if len(response_text) < 100 and looks_like_suggestion(response_text):
+            logger.warning("Final QanoonMate text is very short and resembles suggestion; treating as no answer")
+            return "QanoonMate did not provide a response to the query."
+
         # Add proper paragraph breaks for better readability
         # Split long responses at sentence boundaries
         if len(response_text) > 200:
@@ -755,3 +788,844 @@ def scrape_qanoonmate_response(query):
                 logger.info("Browser closed")
             except:
                 pass
+
+
+def scrape_pakistan_lawbot_response(query, timeout=45):
+    """\
+    Fetches response from Pakistan Law Bot using direct URL with pre-filled query.
+    Falls back to Selenium if direct approach fails.
+    """
+    try:
+        # Try direct URL approach first - simpler and more reliable
+        import urllib.parse
+        encoded_query = urllib.parse.quote(query)
+        direct_url = f'https://chat.pakistanlawbot.com/guest-chat?query={encoded_query}'
+        
+        logger.info(f"Attempting direct URL access: {direct_url[:80]}...")
+        
+        # Use requests with a proper user agent
+        import requests
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+        }
+        
+        response = requests.get(direct_url, headers=headers, timeout=15)
+        
+        if response.status_code == 200:
+            logger.info(f"Direct URL returned status 200, page length: {len(response.text)} chars")
+            # The response is an HTML page - we'd still need to extract the chat response
+            # This is still complex, so fall back to Selenium for proper interaction
+            logger.info("Direct URL approach requires Selenium for interaction, falling back...")
+        else:
+            logger.warning(f"Direct URL returned status {response.status_code}")
+            
+    except Exception as e:
+        logger.debug(f"Direct URL approach failed: {str(e)}")
+    
+    # Fall back to Selenium with improved approach
+    driver = None
+    try:
+        base_url = 'https://chat.pakistanlawbot.com/guest-chat'
+        logger.info(f"Starting Selenium browser for Pakistan Law Bot at {base_url}...")
+
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--window-size=1920,1080')
+        options.add_argument('--disable-blink-features=AutomationControlled')
+        options.add_argument('--start-maximized')
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-plugins')
+        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
+
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=options
+        )
+
+        logger.info("Loading Pakistan Law Bot page...")
+        driver.get(base_url)
+        
+        # Extended wait for React app initialization
+        logger.info("Waiting for React app to fully load (up to 30s)...")
+        wait = WebDriverWait(driver, 30)
+        
+        input_field = None
+        
+        # Try to wait for input field with explicit waits
+        try:
+            input_field = wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, 'textarea, input[type="text"]'))
+            )
+            logger.info("Found input field via wait")
+        except TimeoutException:
+            logger.warning("Initial wait timed out, trying alternative selectors...")
+            
+            # Try with very long wait and alternative approach
+            time.sleep(5)  # Give extra time
+            all_textareas = driver.find_elements(By.CSS_SELECTOR, 'textarea')
+            all_inputs = driver.find_elements(By.CSS_SELECTOR, 'input[type="text"]')
+            
+            for field in all_textareas + all_inputs:
+                try:
+                    if field.is_displayed():
+                        input_field = field
+                        logger.info(f"Found {field.tag_name} element")
+                        break
+                except:
+                    pass
+
+        if not input_field:
+            logger.warning("Input field not found after extended wait")
+            return "Pakistan Law Bot interface did not load. Please try again later."
+
+        logger.info("Found input field, entering query...")
+        
+        # Focus and clear
+        driver.execute_script("arguments[0].scrollIntoView(true);", input_field)
+        time.sleep(0.3)
+        input_field.click()
+        time.sleep(0.2)
+        
+        # Clear field
+        driver.execute_script("arguments[0].value = '';", input_field)
+        time.sleep(0.1)
+
+        # Type query character by character
+        logger.info(f"Typing query: {query[:50]}...")
+        for char in query:
+            input_field.send_keys(char)
+            time.sleep(0.01)  # Faster typing
+        
+        time.sleep(0.3)
+
+        # Find and click send button
+        send_button = None
+        button_selectors = [
+            'button[type="submit"]',
+            'button[aria-label*="send" i]',
+            'button:last-of-type',
+            'button',
+        ]
+        
+        for selector in button_selectors:
+            try:
+                buttons = driver.find_elements(By.CSS_SELECTOR, selector)
+                for btn in buttons:
+                    try:
+                        if btn.is_displayed():
+                            send_button = btn
+                            logger.info(f"Found send button")
+                            break
+                    except:
+                        pass
+                if send_button:
+                    break
+            except:
+                pass
+
+        # Send message
+        if send_button:
+            logger.info("Clicking send button...")
+            try:
+                driver.execute_script("arguments[0].click();", send_button)
+            except:
+                input_field.send_keys(Keys.RETURN)
+        else:
+            logger.info("No button found, pressing Enter...")
+            input_field.send_keys(Keys.RETURN)
+
+        # Wait for response - Pakistan Law Bot can take 30+ seconds
+        logger.info("Waiting for response (up to 45s)...")
+        time.sleep(3)
+        
+        max_wait = 45
+        start = time.time()
+        prev_len = 0
+        stable = 0
+        last_analyzing = True
+        
+        while time.time() - start < max_wait:
+            try:
+                body_text = driver.find_element(By.TAG_NAME, 'body').text
+                cur_len = len(body_text)
+                
+                # Check if still in "analyzing" state
+                is_analyzing = "analyzing" in body_text.lower()
+                
+                # Only consider stabilized if:
+                # 1. Not in analyzing state anymore
+                # 2. Content has grown significantly (response is loading)
+                # 3. Content length is stable
+                if not is_analyzing and cur_len > 300:
+                    if cur_len == prev_len:
+                        stable += 1
+                        if stable >= 3:
+                            logger.info(f"Content stable after {time.time()-start:.1f}s")
+                            break
+                    else:
+                        stable = 0
+                else:
+                    stable = 0
+                
+                prev_len = cur_len
+                last_analyzing = is_analyzing
+            except:
+                pass
+            
+            time.sleep(0.5)
+
+        # Extract response with multiple fallback strategies
+        response_text = None
+        
+        # Strategy 1: Look for specific response container elements
+        try:
+            logger.info("Attempting CSS selector extraction...")
+            # Pakistan Law Bot likely puts response in a specific container
+            selectors = [
+                'div[class*="response"]',
+                'div[class*="message"]:not([class*="input"])',
+                'div[class*="answer"]',
+                'div[class*="content"]',
+                'main div:last-of-type',
+                '[role="main"] p',
+            ]
+            
+            for selector in selectors:
+                try:
+                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    for elem in reversed(elements[-20:]):
+                        text = elem.text.strip()
+                        if text and len(text) > 200 and "analyzing" not in text.lower() and "Web Search" not in text:
+                            response_text = text
+                            logger.info(f"Found response: {len(text)} chars")
+                            break
+                    if response_text:
+                        break
+                except:
+                    pass
+        except Exception as e:
+            logger.debug(f"CSS extraction failed: {str(e)}")
+
+        # Strategy 2: Extract from body and parse intelligently
+        if not response_text:
+            logger.info("CSS failed, parsing full page content...")
+            try:
+                body_text = driver.find_element(By.TAG_NAME, 'body').text
+                lines = [l.strip() for l in body_text.split('\n') if l.strip()]
+                
+                # Filter out UI elements
+                content_lines = []
+                skip_keywords = ['analyzing', 'complete', 'progress', 'pending', 'web search', 'audio search', 'login', 'sign up', 'did you know']
+                
+                for line in lines:
+                    if len(line) > 80 and not any(kw in line.lower() for kw in skip_keywords):
+                        content_lines.append(line)
+                
+                logger.info(f"Found {len(content_lines)} potential content lines")
+                
+                if content_lines:
+                    # Take the longest continuous block as the response
+                    response_text = '\n'.join(content_lines[:20])  # First 20 lines of real content
+                    logger.info(f"Extracted {len(response_text)} chars from page content")
+            except Exception as e:
+                logger.error(f"Body parsing failed: {str(e)}")
+
+        if not response_text:
+            return "Pakistan Law Bot did not return a response. The service may be unavailable."
+
+        response_text = ' '.join(response_text.split())
+        if len(response_text) > 250:
+            response_text = response_text.replace('. ', '.\n\n')
+
+        logger.info(f"Successfully extracted Pakistan Law Bot response: {len(response_text)} characters")
+        return response_text
+
+    except Exception as e:
+        logger.error(f"Pakistan Law Bot scraping error: {str(e)}", exc_info=True)
+        return f"Pakistan Law Bot failed: {str(e)[:60]}"
+
+    finally:
+        if driver:
+            try:
+                driver.quit()
+                logger.info("Pakistan Law Bot browser closed")
+            except:
+                pass
+
+
+def scrape_lexa_lawyer_response(query, timeout=30):
+    """
+    Uses Selenium to visit Lexa Lawyer chatbot, handle login with checkbox, and extract response.
+    Has a timeout to prevent hanging the server.
+    """
+    driver = None
+
+    try:
+        logger.info("Starting Selenium browser for Lexa Lawyer scraping...")
+        
+        # Chrome options for headless browser
+        options = webdriver.ChromeOptions()
+        options.add_argument('--headless')
+        options.add_argument('--no-sandbox')
+        options.add_argument('--disable-dev-shm-usage')
+        options.add_argument('--disable-gpu')
+        options.add_argument('--window-size=1920,1080')
+        options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+        
+        # Initialize Chrome driver
+        driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=options
+        )
+        
+        logger.info("Browser opened, navigating to Lexa login page...")
+        driver.get("https://www.lexa.lawyer/login")
+
+        wait = WebDriverWait(driver, 20)
+
+        try:
+            email_input = wait.until(
+                EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, 'input[type="email"], input[name="email"], #email, input[placeholder*="Email"]')
+                )
+            )
+            password_input = wait.until(
+                EC.visibility_of_element_located(
+                    (By.CSS_SELECTOR, 'input[type="password"], input[name="password"], #password')
+                )
+            )
+
+            email_input.clear()
+            email_input.send_keys(os.getenv('LEXA_EMAIL', ''))
+            time.sleep(0.5)
+            password_input.clear()
+            password_input.send_keys(os.getenv('LEXA_PASSWORD', ''))
+
+            # Check the remember me / verification checkbox if present
+            checkbox = None
+            checkbox_selectors = [
+                'input[type="checkbox"]',
+                'input[name*="remember"]',
+                'input[id*="remember"]',
+                'label input[type="checkbox"]'
+            ]
+            for selector in checkbox_selectors:
+                try:
+                    boxes = driver.find_elements(By.CSS_SELECTOR, selector)
+                except Exception:
+                    continue
+                for box in boxes:
+                    try:
+                        if box.is_displayed():
+                            checkbox = box
+                            break
+                    except Exception:
+                        continue
+                if checkbox:
+                    break
+
+            if checkbox:
+                logger.info("Checking Lexa remember-me checkbox...")
+                driver.execute_script("arguments[0].scrollIntoView(true);", checkbox)
+                time.sleep(0.2)
+                try:
+                    checkbox.click()
+                except Exception:
+                    driver.execute_script("arguments[0].click();", checkbox)
+                time.sleep(0.5)
+            else:
+                logger.warning("Lexa remember-me checkbox not found")
+
+            # Submit the login form
+            login_button = None
+            button_selectors = [
+                'button[type="submit"]',
+                'button[class*="login"]',
+                'button[class*="signin"]',
+                'button'
+            ]
+            for selector in button_selectors:
+                try:
+                    buttons = driver.find_elements(By.CSS_SELECTOR, selector)
+                except Exception:
+                    continue
+                for btn in buttons:
+                    try:
+                        text = btn.text.strip().lower()
+                        if btn.is_displayed() and any(keyword in text for keyword in ["sign in", "login", "log in"]):
+                            login_button = btn
+                            break
+                    except Exception:
+                        continue
+                if login_button:
+                    break
+
+            if login_button:
+                logger.info("Submitting Lexa login form...")
+                driver.execute_script("arguments[0].scrollIntoView(true);", login_button)
+                time.sleep(0.3)
+                try:
+                    login_button.click()
+                except Exception:
+                    driver.execute_script("arguments[0].click();", login_button)
+            else:
+                logger.warning("Could not locate Lexa login submit button")
+
+            # Wait for navigation away from login page
+            wait.until(lambda drv: '/login' not in drv.current_url)
+            logger.info("Lexa login successful")
+
+        except Exception as e:
+            logger.warning(f"Lexa login sequence encountered an issue: {str(e)}")
+
+        # Navigate to chatbot after login
+        driver.get("https://www.lexa.lawyer/ChatBot")
+        time.sleep(3)
+        
+        # Wait for page to stabilize
+        time.sleep(3)
+        
+        # Find input field for query
+        input_field = None
+        # Try a wide range of selectors, including Lexa-specific classes,
+        # generic text inputs and rich-text/contenteditable editors.
+        input_selectors = [
+            # Lexa-specific text area used for query input
+            'textarea.custom-textarea',
+            'div.custom-textarea',
+            '[class*="custom-textarea"]',
+
+            # Common patterns and fallbacks
+            'textarea[placeholder*="message"]',
+            'textarea[placeholder*="query"]',
+            'textarea[placeholder*="ask"]',
+            'input[placeholder*="message"]',
+            'input[placeholder*="query"]',
+            'input[placeholder*="ask"]',
+            '#chat-input',
+            'input[type="text"]',
+            'input[type="search"]',
+            'input:not([type])',
+            'textarea',
+            '[contenteditable="true"]',
+            'div[role="textbox"]',
+            'div[class*="editor"][contenteditable="true"]',
+        ]
+
+        for selector in input_selectors:
+            try:
+                elements = driver.find_elements(By.CSS_SELECTOR, selector)
+            except Exception:
+                continue
+            for elem in elements:
+                try:
+                    if elem.is_displayed():
+                        input_field = elem
+                        logger.info(f"Found input field: {selector}")
+                        break
+                except Exception:
+                    continue
+            if input_field:
+                break
+
+        inside_iframe = False
+        if input_field is None:
+            logger.info("Input field not found in default context, checking iframes...")
+            frames = driver.find_elements(By.TAG_NAME, "iframe")
+            for idx, frame in enumerate(frames):
+                try:
+                    driver.switch_to.frame(frame)
+                except Exception:
+                    continue
+                found = False
+                for selector in input_selectors:
+                    try:
+                        elements = driver.find_elements(By.CSS_SELECTOR, selector)
+                    except Exception:
+                        continue
+                    for elem in elements:
+                        try:
+                            if elem.is_displayed():
+                                input_field = elem
+                                inside_iframe = True
+                                found = True
+                                logger.info(f"Found input field inside iframe #{idx}: {selector}")
+                                break
+                        except Exception:
+                            continue
+                    if found:
+                        break
+                if found:
+                    break
+                driver.switch_to.default_content()
+
+        if input_field is None:
+            driver.switch_to.default_content()
+            return "Lexa Lawyer chat input was not found. The page layout may have changed."
+        
+        logger.info(f"Entering query: {query}")
+
+        # Helper to collect current bot/assistant messages so we can
+        # distinguish existing intro text from the new reply. We search
+        # both the main document and any iframes, since the chatbot UI
+        # is often embedded.
+        def _collect_bot_elements():
+            elems = []
+            response_selectors_local = [
+                # Lexa-specific bot/receiver container
+                "//div[contains(@class, 'receiver-div') and contains(@class, 'relative')]",
+
+                # Generic bot/assistant message patterns
+                "//div[contains(@class, 'message') and not(contains(@class, 'user'))]",
+                "//div[contains(@class, 'bot')]",
+                "//div[contains(@class, 'assistant')]",
+                "//div[contains(@class, 'response')]",
+                "//p[contains(@class, 'message')]",
+            ]
+
+            def _collect_in_current_context():
+                for sel in response_selectors_local:
+                    try:
+                        found = driver.find_elements(By.XPATH, sel)
+                        for el in found:
+                            if el not in elems:
+                                elems.append(el)
+                    except Exception:
+                        continue
+
+            # Collect from top-level document
+            _collect_in_current_context()
+
+            # Then collect from any iframes
+            try:
+                frames = driver.find_elements(By.TAG_NAME, "iframe")
+            except Exception:
+                frames = []
+
+            for frame in frames:
+                try:
+                    driver.switch_to.frame(frame)
+                    _collect_in_current_context()
+                except Exception:
+                    continue
+                finally:
+                    # Always return to top-level before moving to next frame
+                    try:
+                        driver.switch_to.default_content()
+                    except Exception:
+                        pass
+
+            return elems
+
+        # Snapshot existing bot messages (e.g. intro banner) before sending query
+        existing_bot_elements = _collect_bot_elements()
+        existing_bot_count = len(existing_bot_elements)
+
+        # Focus field
+        driver.execute_script("arguments[0].scrollIntoView(true);", input_field)
+        time.sleep(0.5)
+        driver.execute_script("""
+            arguments[0].focus();
+            arguments[0].click();
+        """, input_field)
+        time.sleep(0.5)
+
+        # Clear existing content, handling both real inputs and contenteditable editors
+        try:
+            tag_name = input_field.tag_name.lower()
+        except Exception:
+            tag_name = ""
+        contenteditable = "true" == (input_field.get_attribute("contenteditable") or "").lower()
+
+        try:
+            if tag_name in ("input", "textarea") and not contenteditable:
+                driver.execute_script("arguments[0].value = '';", input_field)
+            else:
+                # For rich-text editors, select all and delete
+                input_field.send_keys(Keys.CONTROL, "a")
+                input_field.send_keys(Keys.BACKSPACE)
+        except Exception:
+            # Best-effort fallback
+            try:
+                input_field.clear()
+            except Exception:
+                pass
+
+        time.sleep(0.3)
+
+        # Type query
+        input_field.send_keys(query)
+        time.sleep(1)
+        
+        # Find and click send button
+        button = None
+        button_selectors = [
+            'button[type="submit"]',
+            'button[class*="send"]',
+            'button[aria-label*="send"]',
+            'button[class*="submit"]',
+        ]
+        
+        for selector in button_selectors:
+            try:
+                buttons = driver.find_elements(By.CSS_SELECTOR, selector)
+                for btn in buttons:
+                    try:
+                        if btn.is_displayed():
+                            button = btn
+                            logger.info(f"Found send button: {selector}")
+                            break
+                    except:
+                        continue
+                if button:
+                    break
+            except:
+                continue
+        
+        if button:
+            logger.info("Clicking send button...")
+            driver.execute_script("arguments[0].scrollIntoView(true);", button)
+            time.sleep(0.5)
+            try:
+                button.click()
+            except:
+                driver.execute_script("arguments[0].click();", button)
+        else:
+            logger.info("No send button found, pressing Enter...")
+            input_field.send_keys(Keys.RETURN)
+        
+        # Wait for response
+        logger.info("Waiting for Lexa Lawyer response...")
+        time.sleep(3)
+        
+        max_wait_time = 30
+        check_interval = 1
+        elapsed_time = 0
+        previous_page_length = 0
+        stable_count = 0
+        
+        while elapsed_time < max_wait_time:
+            try:
+                body_text = driver.find_element(By.TAG_NAME, "body").text
+                current_length = len(body_text)
+                
+                if current_length == previous_page_length and current_length > 300:
+                    stable_count += 1
+                    if stable_count >= 3:
+                        logger.info(f"Response stabilized after {elapsed_time:.1f} seconds")
+                        break
+                else:
+                    stable_count = 0
+                
+                previous_page_length = current_length
+            except:
+                pass
+            
+            time.sleep(check_interval)
+            elapsed_time += check_interval
+        
+        # Extract response
+        response_text = None
+
+        # Collect bot messages again and prefer those that appeared AFTER we sent the query
+        all_bot_elements = _collect_bot_elements()
+        new_bot_elements = all_bot_elements[existing_bot_count:] if len(all_bot_elements) > existing_bot_count else []
+
+        # Known intro/marketing phrases we want to skip
+        banned_snippets = [
+            "introducing lexa 2.0",
+            "your ultimate legal companion",
+            "welcome to lexa",
+        ]
+
+        def _is_valid_response_text(text: str) -> bool:
+            if not text:
+                return False
+            lowered = text.lower()
+            if any(snippet in lowered for snippet in banned_snippets):
+                return False
+            if text.strip() == query.strip():
+                return False
+            return len(text.strip()) > 30
+
+        # Prefer newest of the new bot elements; fall back to all if nothing new
+        candidate_elements = new_bot_elements if new_bot_elements else all_bot_elements
+
+        for elem in reversed(candidate_elements):
+            try:
+                text = elem.text.strip()
+            except Exception:
+                continue
+            if _is_valid_response_text(text):
+                response_text = text
+                logger.info("Selected Lexa response from bot message list")
+                break
+        
+        # Fallback: Extract from body (top-level + iframes)
+        if not response_text:
+            try:
+                paragraphs: list[str] = []
+
+                # Helper to gather paragraphs from the current browsing context
+                def _collect_paragraphs_from_current_context():
+                    try:
+                        body_text_local = driver.find_element(By.TAG_NAME, "body").text
+                    except Exception:
+                        return
+                    for p in body_text_local.split('\n'):
+                        p = p.strip()
+                        if p and len(p) > 50:
+                            paragraphs.append(p)
+
+                # Collect from top-level document
+                _collect_paragraphs_from_current_context()
+
+                # Collect from any iframes as well
+                try:
+                    frames = driver.find_elements(By.TAG_NAME, "iframe")
+                except Exception:
+                    frames = []
+
+                for frame in frames:
+                    try:
+                        driver.switch_to.frame(frame)
+                        _collect_paragraphs_from_current_context()
+                    except Exception:
+                        continue
+                    finally:
+                        try:
+                            driver.switch_to.default_content()
+                        except Exception:
+                            pass
+
+                if paragraphs:
+                    for para in paragraphs:
+                        if not _is_valid_response_text(para):
+                            continue
+                        # Filter out obvious UI/login text
+                        if "sign in" in para.lower() or "login" in para.lower():
+                            continue
+                        response_text = para
+                        break
+
+                    if not response_text and paragraphs:
+                        # As a last resort, pick the longest paragraph that isn't clearly banner/intro text
+                        filtered = [p for p in paragraphs if _is_valid_response_text(p)]
+                        if filtered:
+                            response_text = max(filtered, key=len)
+            except Exception:
+                pass
+        
+        if not response_text:
+            return "Lexa Lawyer did not provide a response. Login or page access may have failed."
+        
+        # Clean response
+        response_text = response_text.strip()
+        response_text = '\n'.join(line.strip() for line in response_text.split('\n') if line.strip())
+        response_text = ' '.join(response_text.split())
+        
+        if len(response_text) > 200:
+            response_text = response_text.replace('. ', '.\n\n')
+        
+        logger.info(f"Successfully extracted Lexa Lawyer response: {len(response_text)} characters")
+        return response_text
+        
+    except Exception as e:
+        logger.error(f"Lexa Lawyer scraping error: {str(e)}", exc_info=True)
+        return f"Error fetching from Lexa Lawyer: {str(e)}"
+    
+    finally:
+        if driver:
+            try:
+                driver.quit()
+                logger.info("Lexa Lawyer browser closed")
+            except:
+                pass
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def compare_all_platforms(request):
+    """
+    Fetches responses from multiple platforms (PakLegal RAG, QanoonMate, and Pakistan Law Bot)
+    and returns them for comparison.
+    """
+    try:
+        data = json.loads(request.body)
+        message = data.get('message', '').strip()
+        
+        if not message:
+            return JsonResponse({'error': 'Message is required'}, status=400)
+        
+        logger.info(f"Fetching responses from all platforms for: {message[:100]}")
+        
+        results = {
+            'message': message,
+            'paklegal': None,
+            'qanoonmate': None,
+            'pakistan_lawbot': None,
+            'success': True
+        }
+        
+        # Get PakLegal response from RAG
+        try:
+            logger.info("Fetching PakLegal RAG response...")
+            from chat.services import get_rag_chain
+            rag_chain = get_rag_chain()
+            response = rag_chain.invoke({"input": message})
+
+            # Normalise response (can be dict or plain string)
+            if isinstance(response, dict):
+                candidate_keys = [
+                    'output', 'answer', 'result', 'text', 'response'
+                ]
+                response_text = None
+                for key in candidate_keys:
+                    value = response.get(key)
+                    if value:
+                        response_text = str(value)
+                        break
+                if response_text is None:
+                    response_text = str(response)
+            else:
+                response_text = str(response)
+
+            results['paklegal'] = response_text[:1000] if response_text else 'No response from PakLegal'
+            logger.info(f"PakLegal response length: {len(results['paklegal'])} chars")
+        except Exception as e:
+            logger.error(f"Error getting PakLegal response: {str(e)}")
+            results['paklegal'] = f"Error: {str(e)}"
+        
+        # Get QanoonMate response
+        try:
+            logger.info("Fetching QanoonMate response...")
+            results['qanoonmate'] = scrape_qanoonmate_response(message)
+            logger.info(f"QanoonMate response length: {len(results['qanoonmate'])} chars")
+        except Exception as e:
+            logger.error(f"Error getting QanoonMate response: {str(e)}")
+            results['qanoonmate'] = f"Error: {str(e)}"
+        
+        # Get Pakistan Law Bot response (with timeout to prevent server hang)
+        try:
+            logger.info("Fetching Pakistan Law Bot response (with 40 second timeout)...")
+            # Note: Pakistan Law Bot scraping takes time due to React loading
+            # In production, this should be handled asynchronously
+            results['pakistan_lawbot'] = scrape_pakistan_lawbot_response(message, timeout=40)
+            logger.info(f"Pakistan Law Bot response length: {len(results['pakistan_lawbot'])} chars")
+        except Exception as e:
+            logger.error(f"Error getting Pakistan Law Bot response: {str(e)}")
+            results['pakistan_lawbot'] = f"Pakistan Law Bot request failed or timed out: {str(e)}"
+        
+        logger.info("All platform responses fetched successfully")
+        return JsonResponse(results)
+        
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
+    except Exception as e:
+        logger.error(f"Error in compare_all_platforms: {str(e)}", exc_info=True)
+        return JsonResponse({'error': f'Comparison error: {str(e)}'}, status=500)
+

@@ -10,5 +10,6 @@ urlpatterns = [
     path('transcribe/', views.transcribe_audio, name='transcribe_audio'),
     path('synthesize/', views.synthesize_speech, name='synthesize_speech'),
     path('compare/', views.compare_with_qanoonmate, name='compare_with_qanoonmate'),
+    path('compare-all/', views.compare_all_platforms, name='compare_all_platforms'),
 ]
 

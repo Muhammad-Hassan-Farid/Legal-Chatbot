@@ -837,6 +837,10 @@
             border-left: 4px solid var(--pak-accent);
         }
         
+        .naz-column {
+            border-left: 4px solid #8B4513;
+        }
+        
         .comparison-response {
             color: var(--pak-text-dark);
             line-height: 1.7;
@@ -1079,7 +1083,7 @@
             <div class="chat-input-container">
                 <input type="text" id="userInput" placeholder="Type your message or hold to record...">
                 <button id="recordButton" title="Hold to record"><i class="fas fa-microphone"></i></button>
-                <button id="compareButton" title="Compare with QanoonMate"><i class="fas fa-balance-scale"></i></button>
+                <button id="compareButton" title="Compare with All Platforms"><i class="fas fa-balance-scale"></i></button>
                 <button id="sendButton" title="Send message"><i class="fas fa-paper-plane"></i></button>
             </div>
         </div>
@@ -1089,13 +1093,13 @@
     <div id="comparisonModal" class="comparison-modal">
         <div class="comparison-modal-content">
             <div class="comparison-modal-header">
-                <h2><i class="fas fa-balance-scale"></i> Compare with QanoonMate</h2>
+                <h2><i class="fas fa-balance-scale"></i> Compare Responses</h2>
                 <button class="comparison-close-btn" onclick="closeComparisonModal()">&times;</button>
             </div>
             <div class="comparison-modal-body">
                 <div class="comparison-loading" id="comparisonLoading">
                     <div class="spinner"></div>
-                    <p>Visiting QanoonMate chatbot and fetching response...</p>
+                    <p>Fetching responses from all platforms...</p>
                 </div>
                 <div class="comparison-content" id="comparisonContent" style="display: none;">
                     <div class="comparison-section">
@@ -1106,6 +1110,10 @@
                         <div class="comparison-column qanoonmate-column">
                             <h3><i class="fas fa-globe"></i> QanoonMate</h3>
                             <div class="comparison-response" id="qanoonmateResponse"></div>
+                        </div>
+                        <div class="comparison-column pakistan-lawbot-column">
+                            <h3><i class="fas fa-gavel"></i> Pakistan Law Bot</h3>
+                            <div class="comparison-response" id="pakistanLawBotResponse"></div>
                         </div>
                     </div>
                 </div>
@@ -1648,53 +1656,44 @@
             contentDiv.style.display = 'none';
             
             try {
-                // Fetch PakLegal response
-                console.log('Fetching PakLegal response...');
-                const pakLegalResponse = await fetch('/get/', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                        'X-CSRFToken': getCookie('csrftoken')
-                    },
-                    body: `msg=${encodeURIComponent(message)}&lang=en&voice=false`
-                });
-                
-                const pakLegalData = await pakLegalResponse.json();
-                const pakLegalAnswer = pakLegalData.answer || 'No response received';
-                
-                // Fetch QanoonMate response via backend proxy
-                console.log('Fetching QanoonMate response...');
-                const qanoonmateResponse = await fetch('/compare/', {
+                // Fetch all platform responses at once
+                console.log('Fetching responses from all platforms...');
+                const allPlatformsResponse = await fetch('/compare-all/', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRFToken': getCookie('csrftoken')
                     },
                     body: JSON.stringify({ message: message })
-                }).catch(error => {
-                    console.error('Proxy error:', error);
-                    return null;
                 });
                 
-                let qanoonmateAnswer = 'Unable to fetch response from QanoonMate. The chatbot may be unavailable.';
-                
-                if (qanoonmateResponse && qanoonmateResponse.ok) {
-                    const qanoonmateData = await qanoonmateResponse.json();
-                    qanoonmateAnswer = qanoonmateData.qanoonmate_response || qanoonmateAnswer;
+                if (!allPlatformsResponse.ok) {
+                    throw new Error(`HTTP error! status: ${allPlatformsResponse.status}`);
                 }
+                
+                const allData = await allPlatformsResponse.json();
+                
+                // Extract and format responses
+                const pakLegalAnswer = allData.paklegal || 'No response from PakLegal';
+                const qanoonmateAnswer = allData.qanoonmate || 'No response from QanoonMate';
+                const pakistanLawBotAnswer = allData.pakistan_lawbot || 'No response from Pakistan Law Bot';
                 
                 // Display results
                 document.getElementById('pakLegalResponse').innerHTML = marked.parse(pakLegalAnswer);
                 
-                // Format QanoonMate response with better text structure
-                // Convert line breaks to markdown paragraphs for proper rendering
-                const formattedQanoonMate = qanoonmateAnswer
-                    .split('\n\n')  // Split by double newlines
-                    .map(para => para.trim())
-                    .filter(para => para.length > 0)
-                    .join('\n\n');  // Rejoin with double newlines
+                // Format responses with proper paragraph breaks
+                const formatResponse = (text) => {
+                    if (!text) return '';
+                    const formatted = text
+                        .split('\n\n')
+                        .map(para => para.trim())
+                        .filter(para => para.length > 0)
+                        .join('\n\n');
+                    return marked.parse(formatted);
+                };
                 
-                document.getElementById('qanoonmateResponse').innerHTML = marked.parse(formattedQanoonMate);
+                document.getElementById('qanoonmateResponse').innerHTML = formatResponse(qanoonmateAnswer);
+                document.getElementById('pakistanLawBotResponse').innerHTML = formatResponse(pakistanLawBotAnswer);
                 
                 // Hide loading, show content
                 loadingDiv.style.display = 'none';
@@ -1706,7 +1705,8 @@
                 contentDiv.style.display = 'block';
                 
                 document.getElementById('pakLegalResponse').innerHTML = '<p style="color: red;">Error fetching response</p>';
-                document.getElementById('qanoonmateResponse').textContent = 'Error: Unable to fetch comparison response.';
+                document.getElementById('qanoonmateResponse').innerHTML = '<p style="color: red;">Error fetching response</p>';
+                document.getElementById('pakistanLawBotResponse').innerHTML = '<p style="color: red;">Error fetching response</p>';
             }
         }
         
