@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Comparison Modal</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-container { max-width: 1200px; margin: 0 auto; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; background: #01411C; color: white; border: none; border-radius: 5px; }
+        .response-display { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .platform { border: 1px solid #ccc; padding: 15px; border-radius: 5px; }
+        .platform h3 { margin-top: 0; color: #01411C; }
+        .platform-content { max-height: 400px; overflow-y: auto; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>Comparison Modal Test</h1>
+        <input type="text" id="query" placeholder="Enter your legal question..." value="What are fundamental rights in Pakistan?" style="width: 100%; padding: 10px; font-size: 16px; margin-bottom: 10px;">
+        <button onclick="testComparison()">Compare Responses</button>
+        
+        <div id="loading" style="display: none; margin-top: 20px; text-align: center;">
+            <p>Fetching responses from all platforms...</p>
+        </div>
+        
+        <div class="response-display" id="results" style="display: none;">
+            <div class="platform">
+                <h3>⚖️ PakLegal (RAG System)</h3>
+                <div class="platform-content" id="paklegal"></div>
+            </div>
+            <div class="platform">
+                <h3>⚖️ Pakistan Law Bot</h3>
+                <div class="platform-content" id="pakistan_lawbot"></div>
+            </div>
+            <div class="platform">
+                <h3>🌐 QanoonMate</h3>
+                <div class="platform-content" id="qanoonmate"></div>
+            </div>
+            <div class="platform">
+                <h3>📚 Numainda</h3>
+                <div class="platform-content" id="numainda"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function testComparison() {
+            const query = document.getElementById('query').value.trim();
+            if (!query) {
+                alert('Please enter a question');
+                return;
+            }
+            
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+            
+            try {
+                const response = await fetch('/compare-all/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: query })
+                });
+                
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+                
+                // Display results
+                document.getElementById('paklegal').innerHTML = marked.parse(data.paklegal || '');
+                document.getElementById('pakistan_lawbot').innerHTML = marked.parse(data.pakistan_lawbot || '');
+                document.getElementById('qanoonmate').innerHTML = marked.parse(data.qanoonmate || '');
+                document.getElementById('numainda').innerHTML = marked.parse(data.numainda || '');
+                
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('results').style.display = 'grid';
+                
+            } catch (error) {
+                alert('Error: ' + error.message);
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

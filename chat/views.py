@@ -89,6 +89,81 @@ def extract_text_from_markdown(text):
     return text
 
 
+def normalize_response_structure(text, source="generic"):
+    """
+    Normalize response structure from any platform to ensure consistent formatting.
+    
+    Ensures:
+    - Proper paragraph breaks
+    - Consistent section formatting
+    - Organized content structure
+    - Better readability
+    
+    Args:
+        text (str): Response text from any platform
+        source (str): Source platform ('paklegal', 'pakistanlaw', 'qanoonmate', 'generic')
+    
+    Returns:
+        str: Normalized response with consistent structure
+    """
+    if not text:
+        return ""
+    
+    # Step 1: Clean up text
+    text = text.strip()
+    
+    # Step 2: Normalize line breaks - remove excess whitespace while preserving structure
+    # Replace multiple line breaks with double line breaks
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    
+    # Step 3: Ensure proper spacing around common section markers
+    # Add breaks before article/section references
+    text = re.sub(r'(\w)\n(Article|Section|Clause|Rule|Part)', r'\1\n\n\2', text)
+    
+    # Step 4: Format bullet points properly
+    # Ensure bullet points have proper spacing
+    text = re.sub(r'\n([-•*])\s+', r'\n\n\1 ', text)
+    
+    # Step 5: Format numbered lists properly
+    text = re.sub(r'\n(\d+)\.?\s+', r'\n\n\1. ', text)
+    
+    # Step 6: Add proper spacing around legal references
+    # Ensure legal article references are properly spaced
+    text = re.sub(r'([\.!?])\s+(Article|Section|Art\.|Sec\.)', r'\1\n\n\2', text)
+    
+    # Step 7: Clean up spacing around parentheses (case law citations)
+    text = re.sub(r'\s+\(', ' (', text)
+    text = re.sub(r'\)\s+', ') ', text)
+    
+    # Step 8: Ensure consistent paragraph spacing
+    lines = text.split('\n')
+    structured_lines = []
+    
+    for i, line in enumerate(lines):
+        line = line.strip()
+        if not line:
+            continue
+        
+        # Check if this is a header/section title (all caps or starts with numbers)
+        is_header = (line.isupper() and len(line) > 3) or line.startswith(('Article', 'Section', 'Part', '1.', '2.', '3.'))
+        is_bullet = line.startswith(('-', '•', '*'))
+        is_numbered = bool(re.match(r'^\d+\.', line))
+        
+        # Add extra space before headers and numbered items
+        if structured_lines and (is_header or is_numbered):
+            structured_lines.append('')  # Add blank line before
+        
+        structured_lines.append(line)
+    
+    # Step 9: Join lines with proper spacing
+    result = '\n'.join(structured_lines)
+    
+    # Step 10: Final cleanup - ensure double line breaks between paragraphs
+    result = re.sub(r'\n\n\n+', '\n\n', result)
+    
+    return result.strip()
+
+
 def landing(request):
     """Landing page with hero section"""
     return render(request, 'landing.html')
@@ -341,6 +416,9 @@ def compare_with_qanoonmate(request):
         # Fetch from QanoonMate website using Selenium
         qanoonmate_response = scrape_qanoonmate_response(message)
         
+        # Normalize response structure for consistent formatting
+        qanoonmate_response = normalize_response_structure(qanoonmate_response, source="qanoonmate")
+        
         logger.info(f"QanoonMate response length: {len(qanoonmate_response)}")
         
         return JsonResponse({
@@ -383,49 +461,101 @@ def scrape_qanoonmate_response(query):
         logger.info("Browser opened, navigating to QanoonMate...")
         driver.get("https://www.qanoonmate.com/chat")
         
-        # Wait for page to load and DOM to stabilize
-        time.sleep(5)
+        # Wait for page to fully load using WebDriverWait instead of fixed sleep
+        # This is more reliable for dynamic Next.js applications
+        wait = WebDriverWait(driver, 15)
+        logger.info("Waiting for QanoonMate page to load...")
         
-        # Multiple selector strategies to find input field
-        input_field = None
-        
-        # Strategy 1: Try CSS selectors (simpler and more reliable)
-        css_selectors = [
-            'input[placeholder*="message"]',
-            'input[placeholder*="query"]',
-            'input[placeholder*="ask"]',
-            'input[id*="message"]',
-            'input[id*="query"]',
-            'input[class*="input"]',
-            'textarea[placeholder*="message"]',
-            'textarea[placeholder*="query"]',
-        ]
-        
-        for selector in css_selectors:
-            try:
-                inputs = driver.find_elements(By.CSS_SELECTOR, selector)
-                for elem in inputs:
+        # IMPORTANT: The Chat input field is available in Chat mode (the default)
+        # Make sure we're in Chat mode and not in Summarizer or Drafting modes
+        # The page auto-loads in Chat mode, but we add extra logic for safety
+        logger.info("Ensuring proper mode state...")
+        try:
+            # Wait for the Chat interface to be ready
+            # Look for any button that suggests we might be in a different mode
+            time.sleep(1)  # Brief wait for page to stabilize
+            
+            # Check if we can find the "Drafting" text - if it appears in the page title/content,
+            # we might be in the wrong mode. Try to switch back to Chat mode.
+            body_text = driver.find_element(By.TAG_NAME, "body").text
+            
+            if "Summarizer" in body_text or "Drafting" in body_text:
+                logger.info("Non-Chat mode detected, attempting to switch to Chat...")
+                # Look for MODE/selection buttons and select Chat
+                buttons = driver.find_elements(By.TAG_NAME, "button")
+                for btn in buttons:
                     try:
-                        if elem.is_displayed():
-                            input_field = elem
-                            logger.info(f"Found input field with CSS selector: {selector}")
+                        btn_text = btn.text.strip()
+                        # Look for button with Chat-related text that's also clickable
+                        if "Interactive legal conversations" in btn.text:
+                            logger.info("Found Chat mode option, clicking...")
+                            driver.execute_script("arguments[0].scrollIntoView(true);", btn)
+                            time.sleep(0.3)
+                            btn.click()
+                            logger.info("Switched to Chat mode")
+                            time.sleep(1)
                             break
                     except:
                         continue
-                if input_field:
-                    break
-            except:
-                continue
+        except Exception as e:
+            logger.warning(f"Could not verify/switch mode: {str(e)}")
         
-        # Strategy 2: If CSS didn't work, try finding any visible input/textarea
+        # Wait for input field to be present and clickable
+        try:
+            input_field = wait.until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, "textarea, input[type='text']"))
+            )
+            logger.info("Input field detected")
+        except:
+            logger.warning("Timeout waiting for input field, proceeding anyway")
+            time.sleep(2)
+        
+        # Multiple selector strategies to find input field - improved version
+        input_field = None
+        
+        # Strategy 1: Use explicit waits for better element finding
+        wait = WebDriverWait(driver, 10)
+        
+        # Try textarea first (most common for chat apps)
+        try:
+            logger.info("Trying to find textarea...")
+            input_field = wait.until(
+                EC.element_to_be_clickable((By.CSS_SELECTOR, "textarea"))
+            )
+            logger.info("Found textarea element")
+        except:
+            logger.debug("Textarea not found, trying input fields...")
+        
+        # Try text input fields
+        if not input_field:
+            try:
+                logger.info("Trying to find text input...")
+                input_field = wait.until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "input[type='text']"))
+                )
+                logger.info("Found text input element")
+            except:
+                logger.debug("Text input not found...")
+        
+        # Strategy 2: Try finding by placeholder text
+        if not input_field:
+            logger.info("Trying to find by placeholder...")
+            try:
+                input_field = wait.until(
+                    EC.element_to_be_clickable((By.CSS_SELECTOR, "[placeholder*='ask'], [placeholder*='message'], [placeholder*='query']"))
+                )
+                logger.info("Found input by placeholder")
+            except:
+                logger.debug("Placeholder search failed...")
+        
+        # Strategy 3: If CSS didn't work, try finding any visible input/textarea
         if not input_field:
             logger.warning("CSS selectors didn't find input, trying tag name approach...")
-            for tag in ['input', 'textarea']:
+            for tag in ['textarea', 'input']:
                 try:
                     elements = driver.find_elements(By.TAG_NAME, tag)
                     for elem in elements:
                         try:
-                            # Check if visible and in viewport
                             if elem.is_displayed() and elem.get_attribute('type') != 'hidden':
                                 input_field = elem
                                 logger.info(f"Found visible {tag} element")
@@ -440,50 +570,61 @@ def scrape_qanoonmate_response(query):
         if input_field is None:
             raise Exception("Could not find visible input field on QanoonMate page")
         
-        logger.info(f"Found input field, entering query: {query}")
+        logger.info(f"Found input field, preparing to enter query: {query}")
         
         # Scroll element into view
         driver.execute_script("arguments[0].scrollIntoView(true);", input_field)
-        time.sleep(1)
+        time.sleep(0.5)
         
-        # Try to click and focus using JavaScript (most reliable)
+        # Click to focus using JavaScript (most reliable)
         driver.execute_script("""
             arguments[0].focus();
             arguments[0].click();
         """, input_field)
         
-        time.sleep(1)
+        time.sleep(0.5)
         
         # Clear the field using JavaScript
         driver.execute_script("arguments[0].value = '';", input_field)
-        time.sleep(0.5)
+        time.sleep(0.3)
         
-        # Type text using send_keys character by character to avoid issues
+        # Type text using send_keys with proper error handling
         try:
+            # Clear any existing text first
+            input_field.send_keys(Keys.CONTROL + 'a')
+            time.sleep(0.2)
             input_field.send_keys(query)
-        except:
+            logger.info("Text entered successfully via send_keys")
+        except Exception as e:
             # If send_keys fails, use JavaScript
-            logger.warning("send_keys failed, using JavaScript to enter text")
-            driver.execute_script(f"arguments[0].value = `{query.replace(chr(96), chr(92)+chr(96))}`;", input_field)
-            # Trigger input events
-            driver.execute_script("""
-                const input = arguments[0];
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
+            logger.warning(f"send_keys failed ({str(e)}), using JavaScript to enter text")
+            # Properly escape backticks and quotes in JavaScript
+            safe_query = query.replace('\\', '\\\\').replace('`', '\\`').replace('"', '\\"')
+            driver.execute_script(f"""
+                const elem = arguments[0];
+                elem.value = "{safe_query}";
+                elem.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                elem.dispatchEvent(new Event('change', {{ bubbles: true }}));
             """, input_field)
         
-        time.sleep(1)
+        time.sleep(0.5)
         
         # Find and click send button
         button = None
+        button_found = False
+        
+        # Try to find submit button with various selectors
         button_selectors = [
             'button[type="submit"]',
+            'button[aria-label*="send"]',
+            'button[aria-label*="Send"]',
             'button:has(svg)',  # Button with icon
             'button[class*="send"]',
             'button[class*="submit"]',
-            'button[aria-label*="send"]',
+            'button[class*="action"]',
         ]
         
+        logger.info("Looking for send button...")
         for selector in button_selectors:
             try:
                 buttons = driver.find_elements(By.CSS_SELECTOR, selector)
@@ -492,14 +633,16 @@ def scrape_qanoonmate_response(query):
                         if btn.is_displayed():
                             button = btn
                             logger.info(f"Found button with selector: {selector}")
+                            button_found = True
                             break
                     except:
                         continue
-                if button:
+                if button_found:
                     break
             except:
                 continue
-        # Fallback: Find the last button (usually send button)
+        
+        # Fallback: Find the last visible button (usually send button in chat UIs)
         if not button:
             try:
                 buttons = driver.find_elements(By.TAG_NAME, "button")
@@ -507,275 +650,208 @@ def scrape_qanoonmate_response(query):
                     try:
                         if btn.is_displayed():
                             button = btn
-                            logger.info("Found last visible button")
+                            logger.info("Found last visible button as fallback")
                             break
                     except:
                         continue
             except:
                 pass
         
-        if button:
-            logger.info("Clicking send button...")
-            driver.execute_script("arguments[0].scrollIntoView(true);", button)
-            time.sleep(0.5)
-            try:
-                button.click()
-            except:
-                # Use JavaScript click if WebDriver click fails
-                driver.execute_script("arguments[0].click();", button)
-        else:
-            logger.info("No button found, trying to submit form or press Enter...")
-            try:
-                input_field.submit()
-            except:
-                # Try pressing Enter
-                input_field.send_keys(Keys.RETURN)
+        # Try to submit the form using JavaScript (most reliable for Next.js apps)
+        logger.info("Submitting form with JavaScript...")
+        try:
+            # First try to find a submit button and click it
+            driver.execute_script("""
+                // Try to find and click the send button
+                const sendButtons = Array.from(document.querySelectorAll('button')).filter(btn => 
+                    btn.textContent.toLowerCase().includes('send') || 
+                    btn.textContent.toLowerCase().includes('submit') ||
+                    btn.getAttribute('aria-label') && btn.getAttribute('aria-label').toLowerCase().includes('send')
+                );
+                if (sendButtons.length > 0) {
+                    sendButtons[0].click();
+                    console.log('Send button clicked');
+                } else {
+                    // Fallback: submit form
+                    const form = document.querySelector('form');
+                    if (form) {
+                        form.dispatchEvent(new Event('submit', { bubbles: true }));
+                        console.log('Form submitted');
+                    } else {
+                        // Last resort: trigger Enter key on textarea
+                        const textarea = document.querySelector('textarea');
+                        if (textarea) {
+                            textarea.dispatchEvent(new KeyboardEvent('keydown', { 
+                                key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true 
+                            }));
+                            console.log('Enter key triggered on textarea');
+                        }
+                    }
+                }
+            """)
+            logger.info("Form submission executed via JavaScript")
+        except Exception as e:
+            logger.warning(f"JavaScript submission had error: {str(e)}, will try button click...")
+            
+            # Try to click the send button directly
+            if button:
+                try:
+                    driver.execute_script("arguments[0].click();", button)
+                    logger.info("Button clicked via JavaScript execute_script")
+                except Exception as e2:
+                    logger.warning(f"Button click failed: {str(e2)}")
+            else:
+                try:
+                    # Last resort: press Enter
+                    input_field.send_keys(Keys.RETURN)
+                    logger.info("Submitted via Enter key")
+                except Exception as e3:
+                    logger.warning(f"Could not submit query: {str(e3)}")
         
-        # Wait for response to be generated
+        # Wait for response with improved logic
         logger.info("Waiting for QanoonMate response...")
         
-        # Use explicit wait for response to appear (up to 35 seconds)
-        response_found = False
-        max_wait_time = 35
-        check_interval = 1
+        # Initial wait for response to appear
+        time.sleep(2)
+        
+        response_text = None
+        max_wait_time = 60  # Wait up to 60 seconds for response
+        check_interval = 0.5  # Check more frequently
         elapsed_time = 0
-        previous_page_length = 0
+        
+        # Track content changes
+        prev_body_len = 0
         stable_count = 0
+        response_detected = False
+        max_body_len = 0
         
         while elapsed_time < max_wait_time:
             try:
-                # Get current page text
                 body_text = driver.find_element(By.TAG_NAME, "body").text
-                current_length = len(body_text)
+                current_len = len(body_text)
+                max_body_len = max(max_body_len, current_len)
                 
-                # Wait for page to stabilize (page size not changing for 3 seconds)
-                # This indicates the response has finished loading
-                if current_length == previous_page_length and current_length > 300:
-                    stable_count += 1
-                    if stable_count >= 3:  # Wait for 3 consecutive checks with same length
-                        logger.info(f"Response page stabilized after {elapsed_time:.1f} seconds")
-                        response_found = True
-                        break
-                else:
+                # Initial page is around 300-600 chars, response should add 500+ chars
+                # But be more aggressive - even 300+ chars above initial suggests response
+                if current_len > 900 and not response_detected:  # Response loaded (initial ~400 + response 500+)
+                    logger.info(f"Response detected at {elapsed_time:.1f}s: {current_len} chars (initial was ~500)")
+                    response_detected = True
                     stable_count = 0
                 
-                previous_page_length = current_length
+                if response_detected:
+                    # Once response is detected, wait for it to stabilize
+                    if current_len == prev_body_len:
+                        stable_count += 1
+                        if stable_count >= 4:  # 2 seconds of no change = stable
+                            logger.info(f"Response stable at {elapsed_time:.1f}s, final size: {current_len}")
+                            break
+                    else:
+                        stable_count = 0
+                        logger.debug(f"[{elapsed_time:.1f}s] Content: {current_len} chars")
                 
-                # Also check if "Thinking..." is gone
-                if "Thinking..." not in body_text and current_length > 350:
-                    stable_count += 1
-                    if stable_count >= 2:
-                        response_found = True
-                        logger.info(f"Response detected (no thinking text) after {elapsed_time:.1f} seconds")
-                        break
-                else:
-                    stable_count = max(0, stable_count - 1)
-                    
+                prev_body_len = current_len
+                
             except Exception as e:
-                logger.debug(f"Wait check error: {str(e)}")
+                logger.debug(f"Wait error: {str(e)}")
             
             time.sleep(check_interval)
             elapsed_time += check_interval
         
-        if elapsed_time >= max_wait_time:
-            logger.warning(f"Timeout waiting for response after {max_wait_time} seconds, proceeding with extraction")
-        else:
-            logger.info(f"Response ready in {elapsed_time:.1f} seconds")
+        logger.info(f"Response wait completed after {elapsed_time:.1f} seconds, max size: {max_body_len}")
         
         # Try to find the response message with improved selectors
         response_text = None
-
-        suggestion_keywords = [
-            "try asking", "business registration", "tenant rights", "intellectual property",
-            "employment law", "legal requirements", "protect my intellectual property",
-            "qanoonmate can make mistakes", "global search", "chat mode"
-        ]
-
-        def looks_like_suggestion(text: str) -> bool:
-            lowered = text.lower()
-            if any(keyword in lowered for keyword in suggestion_keywords):
-                return True
-            lines = [line.strip() for line in text.split('\n') if line.strip()]
-            if lowered.startswith("try asking"):
-                return True
-            if len(lines) >= 3 and all(len(line) < 80 for line in lines):
-                # Short bulleted style suggestions
-                return True
-            return False
         
-        # Strategy 1: Look for bot messages in chat
-        response_selectors = [
-            # Common chat bot message selectors (using proper XPath contains() function)
-            "//div[contains(@class, 'message') and contains(@class, 'bot')]",
-            "//div[contains(@class, 'bot-message')]",
-            "//div[contains(@class, 'assistant')]",
-            "//div[@role='article']",  # Accessibility role
-            "//div[contains(@class, 'chat-message') and not(contains(@class, 'user'))]",
-            "//div[contains(@class, 'response')]",
-            "//div[contains(@class, 'answer')]",
-            "//p[contains(@class, 'message')]",
-            # QanoonMate specific
-            "//div[contains(@class, 'qm-response')]",
-            "//div[contains(@class, 'bot-reply')]",
-            "//div[@data-role='bot-message']",
-        ]
+        logger.info("Extracting response from page...")
         
-        logger.info("Attempting to extract response...")
-        for selector in response_selectors:
-            try:
-                elements = driver.find_elements(By.XPATH, selector)
-                if elements:
-                    # Try all elements, not just the last one
-                    # Look for an element that's NOT the user's query
-                    for elem in reversed(elements):
-                        text = elem.text.strip()
-                        # Skip if it's the same as the query we just sent
-                        if text and len(text) > 10 and text != query:
-                            if looks_like_suggestion(text):
-                                logger.debug("Skipping suggestion-like text from XPath match")
-                                continue
-                            response_text = text
-                            logger.info(f"Found response with selector: {selector}")
-                            logger.info(f"Response length: {len(response_text)} chars")
-                            break
-                    if response_text:
-                        break
-            except Exception as e:
-                logger.debug(f"Selector failed: {selector} - {str(e)}")
-                continue
-        
-        # Strategy 2: If XPath fails, try CSS selectors
+        # Strategy 3: Extract from page body with improved filtering
         if not response_text:
-            logger.info("XPath selectors failed, trying CSS selectors...")
-            css_selectors = [
-                'div.message:not(.user)',
-                'div[class*="bot"]',
-                'div[class*="response"]',
-                'div[class*="assistant"]',
-                '.bot-message',
-                '[role="article"]',
-            ]
-            
-            for selector in css_selectors:
-                try:
-                    elements = driver.find_elements(By.CSS_SELECTOR, selector)
-                    if elements:
-                        # Try all elements, skip the query itself
-                        for elem in reversed(elements):
-                            text = elem.text.strip()
-                            if text and len(text) > 10 and text != query:
-                                if looks_like_suggestion(text):
-                                    logger.debug("Skipping suggestion-like text from CSS match")
-                                    continue
-                                response_text = text
-                                logger.info(f"Found response with CSS selector: {selector}")
-                                break
-                        if response_text:
-                            break
-                except Exception as e:
-                    logger.debug(f"CSS selector failed: {selector} - {str(e)}")
-                    continue
-        
-        # Strategy 3: Fallback - Look for actual response divs with smarter parsing
-        if not response_text:
-            logger.warning("Selectors failed, trying intelligent text extraction...")
+            logger.info("Extracting from full page text with smart filtering...")
             try:
-                # Get all divs and look for bot response patterns
-                all_divs = driver.find_elements(By.TAG_NAME, "div")
-                for div in reversed(all_divs[-30:]):  # Check last 30 divs (most recent)
-                    try:
-                        text = div.text.strip()
-                        # Skip loading messages, disclaimers, UI text, and the query itself
-                        if (text and len(text) > 50 and text != query and
-                            "Thinking..." not in text and
-                            "Sign In" not in text and
-                            "Mode" not in text and
-                            "Chat" not in text and
-                            "Search" not in text and
-                            "QanoonMate can make mistakes" not in text):
-                            response_text = text
-                            logger.info(f"Extracted from intelligent div search: {len(response_text)} chars")
-                            break
-                    except:
-                        continue
-            except Exception as e:
-                logger.error(f"Intelligent extraction failed: {str(e)}")
-        
-        # Strategy 4: Final fallback - extract all meaningful text
-        if not response_text:
-            logger.warning("Intelligent extraction failed, extracting all page text...")
-            try:
-                # Get page source and look for text content
                 body_text = driver.find_element(By.TAG_NAME, "body").text
-                logger.debug(f"Full page text length: {len(body_text)} chars")
-                logger.debug(f"Page content sample: {body_text[:500]}")
                 
-                # Split by newlines and filter
-                paragraphs = [
-                    p.strip() for p in body_text.split('\n') 
-                    if p.strip() and len(p.strip()) > 30 and p.strip() != query  # Exclude the query
+                # Split into lines for processing
+                lines = body_text.split('\n')
+                logger.debug(f"Total lines: {len(lines)}")
+                
+                # UI keywords to skip (mode buttons, suggestions, nav elements)
+                skip_keywords = {
+                    "MODE", "Chat", "Interactive legal conversations",
+                    "Summarizer", "Summarize legal documents",
+                    "Drafting", "Draft legal documents",
+                    "Settings", "Sign In", "Chat Mode", "Hello, User",
+                    "Try asking:", "Global Search", "100%", "16px", "card",
+                    "New Chat", "Business Registration", "Tenant Rights",
+                    "Intellectual Property", "Employment Law",
+                    "What are the legal requirements", "Explain the tenant",
+                    "How can I protect", "What are the key labor", "Dec 14"
+                }
+                
+                # Stopping phrases that indicate end of response
+                stopping_phrases = [
+                    "AI is typing",
+                    "can make mistakes",
+                    "verify important information",
+                    "QanoonMate"
                 ]
                 
-                logger.debug(f"Found {len(paragraphs)} paragraphs with > 30 chars")
+                # Collect substantial content lines
+                content_lines = []
+                found_query = False
                 
-                if paragraphs:
-                    # Filter out common UI text and find substantive response
-                    ui_keywords = ["Thinking", "Sign In", "Chat Mode", "Settings", 
-                                   "Global Search", "Summarizer", "Drafting", "can make mistakes",
-                                   "Try asking", "Business Registration", "Tenant Rights"]  # Added suggestion keywords
+                for line in lines:
+                    stripped = line.strip()
                     
-                    # Find first substantial paragraph that's not UI and not the query
-                    for para in paragraphs:
-                        is_ui_text = any(keyword in para for keyword in ui_keywords)
-                        if looks_like_suggestion(para):
-                            logger.debug("Skipping suggestion paragraph in fallback")
-                            continue
-                        # Skip very short responses (< 60 chars) as they're likely suggestions
-                        if not is_ui_text and len(para) > 60 and para != query:
-                            response_text = para
-                            logger.info(f"Found non-UI text: {len(response_text)} chars")
-                            break
+                    # Skip empty lines
+                    if not stripped:
+                        continue
                     
-                    # If still nothing, use the longest paragraph that isn't the query
-                    if not response_text:
-                        valid_paras = [p for p in paragraphs if p != query and len(p) > 50 and not looks_like_suggestion(p)]
-                        if valid_paras:
-                            response_text = max(valid_paras, key=len)
-                            logger.info(f"Using longest paragraph: {len(response_text)} chars")
+                    # Skip very short lines (likely UI)
+                    if len(stripped) < 10:
+                        continue
+                    
+                    # Check for stopping phrases (end of response)
+                    if any(phrase in stripped for phrase in stopping_phrases):
+                        logger.debug(f"Stopping phrase found: '{stripped[:50]}'")
+                        break
+                    
+                    # Skip known UI keywords
+                    if stripped in skip_keywords or any(kw in stripped for kw in skip_keywords):
+                        continue
+                    
+                    # Skip the query itself (shouldn't appear in response)
+                    if stripped.lower() == query.lower():
+                        found_query = True
+                        continue
+                    
+                    # This looks like actual response content
+                    # We want content that appears after the query
+                    if found_query or (len(stripped) > 20):
+                        content_lines.append(stripped)
+                
+                # Join the content
+                if content_lines:
+                    response_text = '\n'.join(content_lines)
+                    logger.info(f"Extracted {len(response_text)} chars from {len(content_lines)} content lines")
+                    
             except Exception as e:
-                logger.error(f"Fallback extraction failed: {str(e)}")
+                logger.error(f"Body extraction failed: {str(e)}")
         
+        # Validate and clean response
         if not response_text:
             logger.error("Could not extract response from QanoonMate")
-            return "QanoonMate did not provide a response. The website may be experiencing issues or the query format is not supported."
+            # Provide helpful message instead of generic error
+            return "I apologize, but I'm currently unable to retrieve a response from QanoonMate at this moment. This may be due to temporary service issues or network limitations. Please try again in a few moments, or consider using Pakistan Law Bot or PakLegal instead, which are providing complete and detailed legal information."
         
-        # Clean up response text - improve formatting
+        # Clean up response text (but preserve structure)
         response_text = response_text.strip()
         
-        # Remove excessive newlines and normalize spacing
-        response_text = '\n'.join(line.strip() for line in response_text.split('\n') if line.strip())
+        logger.info(f"Successfully extracted QanoonMate response: {len(response_text)} characters")
         
-        # Replace multiple spaces with single space
-        response_text = ' '.join(response_text.split())
+        # Apply response normalization
+        normalized = normalize_response_structure(response_text, source="qanoonmate")
         
-        # Only reject if it's very short AND looks like a suggestion
-        # (to avoid false positives on legitimate multi-line legal responses)
-        if len(response_text) < 100 and looks_like_suggestion(response_text):
-            logger.warning("Final QanoonMate text is very short and resembles suggestion; treating as no answer")
-            return "QanoonMate did not provide a response to the query."
-
-        # Add proper paragraph breaks for better readability
-        # Split long responses at sentence boundaries
-        if len(response_text) > 200:
-            # Add line breaks after periods followed by space
-            response_text = response_text.replace('. ', '.\n\n')
-        
-        if len(response_text) < 20:
-            logger.warning(f"Response too short ({len(response_text)} chars): {response_text}")
-            return f"QanoonMate response was too brief to be meaningful: {response_text}"
-        
-        logger.info(f"Successfully extracted response: {len(response_text)} characters")
-        return response_text
+        return normalized
         
     except Exception as e:
         logger.error(f"Selenium scraping error: {str(e)}", exc_info=True)
@@ -939,14 +1015,15 @@ def scrape_pakistan_lawbot_response(query, timeout=45):
             input_field.send_keys(Keys.RETURN)
 
         # Wait for response - Pakistan Law Bot can take 30+ seconds
-        logger.info("Waiting for response (up to 45s)...")
+        logger.info("Waiting for response (up to 70s with extended stabilization)...")
         time.sleep(3)
         
-        max_wait = 45
+        max_wait = 70  # Extended to 70 seconds for complete legal content responses
         start = time.time()
         prev_len = 0
         stable = 0
         last_analyzing = True
+        min_content_length = 800  # Increased to 800 chars for complete legal responses
         
         while time.time() - start < max_wait:
             try:
@@ -954,19 +1031,23 @@ def scrape_pakistan_lawbot_response(query, timeout=45):
                 cur_len = len(body_text)
                 
                 # Check if still in "analyzing" state
-                is_analyzing = "analyzing" in body_text.lower()
+                is_analyzing = "analyzing" in body_text.lower() or "processing" in body_text.lower() or "thinking" in body_text.lower()
                 
                 # Only consider stabilized if:
                 # 1. Not in analyzing state anymore
                 # 2. Content has grown significantly (response is loading)
-                # 3. Content length is stable
-                if not is_analyzing and cur_len > 300:
+                # 3. Content length is stable for extended period
+                if not is_analyzing and cur_len > min_content_length:
                     if cur_len == prev_len:
                         stable += 1
-                        if stable >= 3:
-                            logger.info(f"Content stable after {time.time()-start:.1f}s")
+                        # Require 8 stable checks (4 seconds) for thorough stabilization of legal content
+                        if stable >= 8:
+                            logger.info(f"Content stable after {time.time()-start:.1f}s, size: {cur_len} chars")
                             break
                     else:
+                        # Content still growing, reset counter
+                        if cur_len > prev_len + 50:  # Growth detected
+                            logger.debug(f"Content growing: {prev_len} -> {cur_len} chars")
                         stable = 0
                 else:
                     stable = 0
@@ -1017,32 +1098,106 @@ def scrape_pakistan_lawbot_response(query, timeout=45):
                 body_text = driver.find_element(By.TAG_NAME, 'body').text
                 lines = [l.strip() for l in body_text.split('\n') if l.strip()]
                 
-                # Filter out UI elements
+                # Filter out UI elements and find response content
                 content_lines = []
-                skip_keywords = ['analyzing', 'complete', 'progress', 'pending', 'web search', 'audio search', 'login', 'sign up', 'did you know']
+                skip_keywords = ['analyzing', 'complete', 'progress', 'pending', 'web search', 'audio search', 'login', 'sign up', 'did you know', 'powered by', 'guest', 'message', 'type here']
                 
-                for line in lines:
-                    if len(line) > 80 and not any(kw in line.lower() for kw in skip_keywords):
+                # Find the main response block by looking for substantial paragraphs
+                in_content = False
+                empty_line_count = 0
+                
+                for i, line in enumerate(lines):
+                    # Skip UI elements
+                    if any(kw in line.lower() for kw in skip_keywords):
+                        continue
+                    
+                    # Track empty lines to detect end of response
+                    if not line.strip():
+                        if in_content:
+                            empty_line_count += 1
+                            if empty_line_count > 2:  # 3 empty lines = end of response
+                                break
+                        continue
+                    else:
+                        empty_line_count = 0
+                    
+                    # Look for substantial content (longer than typical UI elements)
+                    # Legal responses tend to have detailed sentences
+                    if len(line) > 40 or (in_content and len(line) > 15):
+                        content_lines.append(line)
+                        in_content = True
+                    elif in_content and len(line) > 8:  # Lowered threshold to not skip important lines
+                        # Continue collecting if it looks like continuation of content
                         content_lines.append(line)
                 
-                logger.info(f"Found {len(content_lines)} potential content lines")
+                logger.info(f"Found {len(content_lines)} content lines ({sum(len(l) for l in content_lines)} chars total)")
                 
                 if content_lines:
-                    # Take the longest continuous block as the response
-                    response_text = '\n'.join(content_lines[:20])  # First 20 lines of real content
-                    logger.info(f"Extracted {len(response_text)} chars from page content")
+                    # Join lines more carefully to preserve legal text structure
+                    # Legal documents often have short lines that are important (e.g., "Freedom of Assembly")
+                    paragraphs = []
+                    current_para = []
+                    
+                    for line in content_lines:
+                        # Check if line is a heading/section (starts with number/uppercase)
+                        looks_like_heading = line[0].isdigit() or (line[0].isupper() and ':' in line and len(line) < 60)
+                        
+                        if looks_like_heading and current_para and len(' '.join(current_para)) > 50:
+                            # Start of new section - save previous paragraph
+                            para_text = ' '.join(current_para).strip()
+                            if para_text:
+                                paragraphs.append(para_text)
+                            current_para = [line]
+                        else:
+                            # Add to current paragraph
+                            current_para.append(line)
+                    
+                    # Add final paragraph
+                    if current_para:
+                        para_text = ' '.join(current_para).strip()
+                        if para_text:
+                            paragraphs.append(para_text)
+                    
+                    # Filter out very short paragraphs that are likely UI elements (< 50 chars)
+                    # But be conservative - legal headers can be short
+                    paragraphs = [p.strip() for p in paragraphs if len(p.strip()) > 30]
+                    
+                    # Join paragraphs with double newlines for clarity
+                    response_text = '\n\n'.join(paragraphs)
+                    
+                    logger.info(f"Extracted {len(response_text)} chars from {len(paragraphs)} paragraphs")
+                    
+                    # If response still seems short, log warning
+                    if len(response_text) < 300:
+                        logger.warning(f"Response may be incomplete: {len(response_text)} chars")
             except Exception as e:
                 logger.error(f"Body parsing failed: {str(e)}")
 
         if not response_text:
             return "Pakistan Law Bot did not return a response. The service may be unavailable."
 
-        response_text = ' '.join(response_text.split())
-        if len(response_text) > 250:
-            response_text = response_text.replace('. ', '.\n\n')
-
+        # Normalize whitespace while preserving structure
+        response_text = re.sub(r'[ \t]+', ' ', response_text)  # Remove excess spaces/tabs
+        response_text = re.sub(r'\n[ \t]+', '\n', response_text)  # Remove indentation
+        response_text = re.sub(r'\n{3,}', '\n\n', response_text)  # Max 2 newlines
+        
+        # Check for incomplete legal references and handle them gracefully
+        # If response ends with incomplete pattern, try to find the complete version in body
+        if response_text.rstrip().endswith(('(', '(Art', '(Sec', '(Art.', '(Sec.', '–')):
+            logger.warning(f"Response appears truncated at: ...{response_text[-50:]}")
+            # Response is incomplete but we'll still provide it - normalization will format it properly
+        
+        # Remove any "Web Search" or "Processing" artifacts that might have made it through
+        response_text = re.sub(r'\n*\b(Web Search|Processing|Analyzing|Thinking|Did you know)\b\n*', '', response_text, flags=re.IGNORECASE)
+        response_text = response_text.strip()
+        
         logger.info(f"Successfully extracted Pakistan Law Bot response: {len(response_text)} characters")
-        return response_text
+        
+        # Apply response normalization for consistent structure
+        normalized = normalize_response_structure(response_text, source="pakistanlaw")
+        logger.info(f"Normalized response to {len(normalized)} characters")
+        
+        return normalized
 
     except Exception as e:
         logger.error(f"Pakistan Law Bot scraping error: {str(e)}", exc_info=True)
@@ -1595,6 +1750,8 @@ def compare_all_platforms(request):
                 response_text = str(response)
 
             results['paklegal'] = response_text[:1000] if response_text else 'No response from PakLegal'
+            # Normalize PakLegal response structure
+            results['paklegal'] = normalize_response_structure(results['paklegal'], source="paklegal")
             logger.info(f"PakLegal response length: {len(results['paklegal'])} chars")
         except Exception as e:
             logger.error(f"Error getting PakLegal response: {str(e)}")
@@ -1603,7 +1760,9 @@ def compare_all_platforms(request):
         # Get QanoonMate response
         try:
             logger.info("Fetching QanoonMate response...")
-            results['qanoonmate'] = scrape_qanoonmate_response(message)
+            qanoonmate_resp = scrape_qanoonmate_response(message)
+            # Normalize QanoonMate response structure
+            results['qanoonmate'] = normalize_response_structure(qanoonmate_resp, source="qanoonmate")
             logger.info(f"QanoonMate response length: {len(results['qanoonmate'])} chars")
         except Exception as e:
             logger.error(f"Error getting QanoonMate response: {str(e)}")
@@ -1614,7 +1773,9 @@ def compare_all_platforms(request):
             logger.info("Fetching Pakistan Law Bot response (with 40 second timeout)...")
             # Note: Pakistan Law Bot scraping takes time due to React loading
             # In production, this should be handled asynchronously
-            results['pakistan_lawbot'] = scrape_pakistan_lawbot_response(message, timeout=40)
+            lawbot_resp = scrape_pakistan_lawbot_response(message, timeout=40)
+            # Normalize Pakistan Law Bot response structure
+            results['pakistan_lawbot'] = normalize_response_structure(lawbot_resp, source="pakistanlaw")
             logger.info(f"Pakistan Law Bot response length: {len(results['pakistan_lawbot'])} chars")
         except Exception as e:
             logger.error(f"Error getting Pakistan Law Bot response: {str(e)}")
