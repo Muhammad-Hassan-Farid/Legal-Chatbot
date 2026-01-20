@@ -68,3 +68,5 @@ demo/
 *.tmp
 *.bak
 *.swp
+hf_models
+models

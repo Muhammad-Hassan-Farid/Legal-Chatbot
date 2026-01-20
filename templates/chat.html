@@ -33,12 +33,66 @@
             background: linear-gradient(135deg, var(--pak-cream) 0%, #f8fafb 100%);
             height: 100vh;
             overflow: hidden;
+            margin: 0;
+        }
+
+        /* Navigation Bar */
+        .navbar-custom {
+            background: linear-gradient(135deg, var(--pak-green) 0%, var(--pak-light-green) 100%);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 12px 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1001;
+        }
+
+        .navbar-custom .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--pak-white) !important;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .navbar-custom .navbar-brand i {
+            font-size: 1.8rem;
+        }
+
+        .navbar-custom .nav-link {
+            color: rgba(255, 255, 255, 0.85) !important;
+            font-weight: 500;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            padding: 8px 15px !important;
+            border-radius: 5px;
+        }
+
+        .navbar-custom .nav-link:hover {
+            color: var(--pak-white) !important;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .navbar-custom .nav-link.active {
+            color: var(--pak-white) !important;
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .navbar-custom .navbar-toggler {
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .navbar-custom .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.85%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
         }
         
         .chat-container {
             display: flex;
-            height: 100vh;
+            height: calc(100vh - 60px);
             box-shadow: inset 0 0 20px var(--pak-shadow);
+            margin-top: 60px;
         }
         
         /* Sidebar Styles */
@@ -805,7 +859,7 @@
         
         .comparison-section {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr 1fr;
             gap: 25px;
         }
         
@@ -834,11 +888,15 @@
         }
         
         .qanoonmate-column {
-            border-left: 4px solid var(--pak-accent);
+            border-left: 4px solid #FF9800;
         }
         
-        .naz-column {
-            border-left: 4px solid #8B4513;
+        .lexiber-column {
+            border-left: 4px solid #2196F3;
+        }
+        
+        .pakistan-lawbot-column {
+            border-left: 4px solid #9C27B0;
         }
         
         .comparison-response {
@@ -965,6 +1023,12 @@
         }
         
         /* Responsive - Comparison Modal */
+        @media (max-width: 1400px) {
+            .comparison-section {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
         @media (max-width: 1024px) {
             .comparison-section {
                 grid-template-columns: 1fr;
@@ -1040,6 +1104,38 @@
     </style>
 </head>
 <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-gavel"></i>
+                <span>PakLegal</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="/chat/">
+                            <i class="fas fa-comments"></i> Chat Bot
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/comparison/">
+                            <i class="fas fa-balance-scale"></i> Comparison
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
     <div class="chat-container">
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
@@ -1056,9 +1152,6 @@
         <div class="main-chat">
             <div class="chat-header">
                 <h2><i class="fas fa-comments"></i> Constitutional Law Assistant</h2>
-                <a href="/" class="back-to-home">
-                    <i class="fas fa-home"></i> Home
-                </a>
             </div>
             
             <div class="messages-container" id="messagesContainer">
@@ -1108,11 +1201,15 @@
                             <div class="comparison-response" id="pakLegalResponse"></div>
                         </div>
                         <div class="comparison-column qanoonmate-column">
-                            <h3><i class="fas fa-globe"></i> QanoonMate</h3>
+                            <h3><i class="fas fa-gavel"></i> QanoonMate</h3>
                             <div class="comparison-response" id="qanoonmateResponse"></div>
                         </div>
+                        <div class="comparison-column lexiber-column">
+                            <h3><i class="fas fa-book"></i> Lexiber</h3>
+                            <div class="comparison-response" id="lexiberResponse"></div>
+                        </div>
                         <div class="comparison-column pakistan-lawbot-column">
-                            <h3><i class="fas fa-gavel"></i> Pakistan Law Bot</h3>
+                            <h3><i class="fas fa-landmark"></i> Pakistan Law Bot</h3>
                             <div class="comparison-response" id="pakistanLawBotResponse"></div>
                         </div>
                     </div>
@@ -1676,10 +1773,8 @@
                 // Extract and format responses
                 const pakLegalAnswer = allData.paklegal || 'No response from PakLegal';
                 const qanoonmateAnswer = allData.qanoonmate || 'No response from QanoonMate';
+                const lexiberAnswer = allData.lexiber || 'No response from Lexiber';
                 const pakistanLawBotAnswer = allData.pakistan_lawbot || 'No response from Pakistan Law Bot';
-                
-                // Display results
-                document.getElementById('pakLegalResponse').innerHTML = marked.parse(pakLegalAnswer);
                 
                 // Format responses with proper paragraph breaks
                 const formatResponse = (text) => {
@@ -1692,7 +1787,10 @@
                     return marked.parse(formatted);
                 };
                 
+                // Display results
+                document.getElementById('pakLegalResponse').innerHTML = marked.parse(pakLegalAnswer);
                 document.getElementById('qanoonmateResponse').innerHTML = formatResponse(qanoonmateAnswer);
+                document.getElementById('lexiberResponse').innerHTML = formatResponse(lexiberAnswer);
                 document.getElementById('pakistanLawBotResponse').innerHTML = formatResponse(pakistanLawBotAnswer);
                 
                 // Hide loading, show content
@@ -1706,6 +1804,7 @@
                 
                 document.getElementById('pakLegalResponse').innerHTML = '<p style="color: red;">Error fetching response</p>';
                 document.getElementById('qanoonmateResponse').innerHTML = '<p style="color: red;">Error fetching response</p>';
+                document.getElementById('lexiberResponse').innerHTML = '<p style="color: red;">Error fetching response</p>';
                 document.getElementById('pakistanLawBotResponse').innerHTML = '<p style="color: red;">Error fetching response</p>';
             }
         }

@@ -47,6 +47,7 @@ def download_embeddings():
     """
     Download and return huggingface embedding model with caching.
     Caches the model globally to avoid reloading on every request.
+    Uses device optimization for faster inference.
     """
     global _embeddings_cache
     
@@ -54,8 +55,24 @@ def download_embeddings():
         logger.info("Using cached embeddings model")
         return _embeddings_cache
     
+    # Keep using e5-large as ChromaDB collection is built with 1024-dim vectors
+    # If we change this, the entire ChromaDB collection needs to be rebuilt
     model_name = "intfloat/multilingual-e5-large"
     logger.info(f"Loading embeddings model: {model_name}")
-    _embeddings_cache = HuggingFaceEmbeddings(model_name=model_name)
+    
+    # Use CUDA if available for faster embedding generation
+    try:
+        import torch
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        logger.info(f"Using device: {device}")
+        
+        _embeddings_cache = HuggingFaceEmbeddings(
+            model_name=model_name,
+            model_kwargs={"device": device}
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load with device optimization: {e}. Using default.")
+        _embeddings_cache = HuggingFaceEmbeddings(model_name=model_name)
+    
     logger.info("Embeddings model loaded and cached")
     return _embeddings_cache

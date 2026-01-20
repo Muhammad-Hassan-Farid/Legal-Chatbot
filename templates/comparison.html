@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Bot Comparison - Pakistan's Constitutional Law</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'style.css' %}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --pak-green: #01411C;
+            --pak-light-green: #1B5E20;
+            --pak-white: #FFFFFF;
+            --pak-cream: #F5F5F5;
+            --pak-text-dark: #2C3E50;
+            --pak-accent: #E74C3C;
+            --pak-shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, var(--pak-cream) 0%, #f8fafb 100%);
+            min-height: 100vh;
+            color: var(--pak-text-dark);
+        }
+
+        /* Header */
+        .comparison-header {
+            background: linear-gradient(135deg, var(--pak-green) 0%, var(--pak-light-green) 100%);
+            color: var(--pak-white);
+            padding: 30px 20px;
+            box-shadow: 0 2px 10px var(--pak-shadow);
+            margin-bottom: 30px;
+        }
+
+        .comparison-header h1 {
+            margin: 0;
+            font-weight: 700;
+            font-size: 2.5rem;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .comparison-header p {
+            margin: 10px 0 0 0;
+            font-size: 1.1rem;
+            opacity: 0.95;
+        }
+
+        .header-icon {
+            font-size: 2.5rem;
+        }
+
+        /* Search Section */
+        .search-section {
+            background: var(--pak-white);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px var(--pak-shadow);
+            margin: 0 0 30px 0;
+            width: 100%;
+        }
+
+        .search-input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        #comparisonQuery {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        #comparisonQuery:focus {
+            outline: none;
+            border-color: var(--pak-green);
+            box-shadow: 0 0 0 3px rgba(1, 65, 28, 0.1);
+        }
+
+        .compare-btn {
+            background: linear-gradient(135deg, var(--pak-green) 0%, var(--pak-light-green) 100%);
+            color: var(--pak-white);
+            border: none;
+            padding: 15px 40px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            white-space: nowrap;
+        }
+
+        .compare-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px var(--pak-shadow);
+        }
+
+        .compare-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        /* Comparison Results */
+        .comparison-results {
+            width: 100%;
+            margin: 0;
+            padding: 0 20px 30px 20px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+        }
+
+        .spinner {
+            border: 4px solid var(--pak-cream);
+            border-top: 4px solid var(--pak-green);
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            font-size: 1.1rem;
+            color: var(--pak-text-dark);
+            margin-top: 10px;
+        }
+
+        /* Bot Cards Grid */
+        .bots-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 25px;
+            margin-top: 30px;
+        }
+
+        .bot-card {
+            background: var(--pak-white);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px var(--pak-shadow);
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 800px;
+        }
+
+        .bot-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 20px var(--pak-shadow);
+        }
+
+        .bot-header {
+            padding: 20px;
+            background: linear-gradient(135deg, var(--pak-green) 0%, var(--pak-light-green) 100%);
+            color: var(--pak-white);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .bot-icon {
+            font-size: 2.5rem;
+        }
+
+        .bot-info h3 {
+            margin: 0;
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .bot-info p {
+            margin: 5px 0 0 0;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+
+        .bot-body {
+            padding: 30px;
+            flex: 1;
+            overflow-y: auto;
+            max-height: 1200px;
+            background: linear-gradient(to bottom, var(--pak-white), #fafafa);
+        }
+
+        .bot-response {
+            font-size: 1rem;
+            line-height: 1.8;
+            color: var(--pak-text-dark);
+            word-break: break-word;
+        }
+
+        .bot-response h1, .bot-response h2, .bot-response h3 {
+            color: var(--pak-green);
+            margin-top: 20px;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+
+        .bot-response h1 {
+            font-size: 1.35rem;
+            border-bottom: 2px solid var(--pak-green);
+            padding-bottom: 10px;
+        }
+
+        .bot-response h2 {
+            font-size: 1.2rem;
+        }
+
+        .bot-response h3 {
+            font-size: 1.1rem;
+        }
+
+        .bot-response p {
+            margin-bottom: 20px;
+            text-align: justify;
+        }
+
+        .bot-response ul, .bot-response ol {
+            margin-left: 30px;
+            margin-bottom: 20px;
+        }
+
+        .bot-response li {
+            margin-bottom: 15px;
+            line-height: 1.8;
+        }
+
+        .bot-response strong {
+            color: var(--pak-green);
+            font-weight: 700;
+        }
+
+        .bot-response em {
+            font-style: italic;
+            color: #555;
+        }
+
+        .bot-response code {
+            background: #f0f0f0;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.95rem;
+        }
+
+        .bot-response blockquote {
+            border-left: 4px solid var(--pak-green);
+            padding-left: 20px;
+            margin: 20px 0;
+            font-style: italic;
+            color: #666;
+            background: #fafafa;
+            padding: 15px 20px;
+            border-radius: 4px;
+        }
+
+        /* Status Indicators */
+        .status-loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .status-error {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            border-radius: 4px;
+            color: #856404;
+            margin-bottom: 15px;
+        }
+
+        .status-success {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #28a745;
+            font-size: 0.9rem;
+            padding: 10px 0;
+        }
+
+        .status-icon {
+            font-size: 1.2rem;
+        }
+
+        /* Bot-specific Colors */
+        .bot-paklegal { --bot-color: #2E7D32; }
+        .bot-qanoonmate { --bot-color: #1976D2; }
+        .bot-lexiber { --bot-color: #D32F2F; }
+        .bot-lexa { --bot-color: #7B1FA2; }
+        .bot-lawbot { --bot-color: #F57C00; }
+
+        .bot-card.bot-paklegal .bot-header {
+            background: linear-gradient(135deg, #2E7D32 0%, #1B5E20 100%);
+        }
+
+        .bot-card.bot-qanoonmate .bot-header {
+            background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
+        }
+
+        .bot-card.bot-lexiber .bot-header {
+            background: linear-gradient(135deg, #D32F2F 0%, #B71C1C 100%);
+        }
+
+        .bot-card.bot-lexa .bot-header {
+            background: linear-gradient(135deg, #7B1FA2 0%, #6A1B9A 100%);
+        }
+
+        .bot-card.bot-lawbot .bot-header {
+            background: linear-gradient(135deg, #F57C00 0%, #E65100 100%);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .comparison-header h1 {
+                font-size: 1.8rem;
+            }
+
+            .search-input-group {
+                flex-direction: column;
+            }
+
+            .compare-btn {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .bots-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .bot-body {
+                max-height: 300px;
+            }
+        }
+
+        /* Scrollbar Styling */
+        .bot-body::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .bot-body::-webkit-scrollbar-track {
+            background: var(--pak-cream);
+        }
+
+        .bot-body::-webkit-scrollbar-thumb {
+            background: var(--pak-light-green);
+            border-radius: 3px;
+        }
+
+        .bot-body::-webkit-scrollbar-thumb:hover {
+            background: var(--pak-green);
+        }
+
+        /* Navigation */
+        /* Navigation Bar */
+        .navbar-custom {
+            background: linear-gradient(135deg, var(--pak-green) 0%, var(--pak-light-green) 100%);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 12px 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .navbar-custom .navbar-brand {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--pak-white) !important;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .navbar-custom .navbar-brand i {
+            font-size: 1.8rem;
+        }
+
+        .navbar-custom .nav-link {
+            color: rgba(255, 255, 255, 0.85) !important;
+            font-weight: 500;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+            padding: 8px 15px !important;
+            border-radius: 5px;
+        }
+
+        .navbar-custom .nav-link:hover {
+            color: var(--pak-white) !important;
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .navbar-custom .nav-link.active {
+            color: var(--pak-white) !important;
+            background: rgba(255, 255, 255, 0.25);
+        }
+
+        .navbar-custom .navbar-toggler {
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .navbar-custom .navbar-toggler-icon {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 0.85%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
+        }
+
+        .comparison-nav {
+            background: var(--pak-white);
+            padding: 15px 20px;
+            box-shadow: 0 2px 8px var(--pak-shadow);
+            margin-bottom: 20px;
+            position: sticky;
+            top: 60px;
+            z-index: 99;
+        }
+
+        .nav-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .nav-logo {
+            font-weight: 700;
+            color: var(--pak-green);
+            font-size: 1.3rem;
+        }
+
+        .nav-links a {
+            color: var(--pak-text-dark);
+            text-decoration: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            background: var(--pak-cream);
+            color: var(--pak-green);
+        }
+
+        .nav-links a.active {
+            background: var(--pak-green);
+            color: var(--pak-white);
+        }
+
+        /* Footer */
+        .comparison-footer {
+            background: var(--pak-green);
+            color: var(--pak-white);
+            text-align: center;
+            padding: 20px;
+            margin-top: 40px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-custom">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">
+                <i class="fas fa-gavel"></i>
+                <span>PakLegal</span>
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/">
+                            <i class="fas fa-home"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/chat/">
+                            <i class="fas fa-comments"></i> Chat Bot
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" aria-current="page" href="/comparison/">
+                            <i class="fas fa-balance-scale"></i> Comparison
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <div class="comparison-header">
+        <h1>
+            <i class="fas fa-balance-scale header-icon"></i>
+            Compare Legal Assistants
+        </h1>
+        <p>Ask a legal question and compare responses from PakLegal, QanoonMate, Lexiber, Lexa, and Pakistan Law Bot</p>
+    </div>
+
+    <!-- Search Section -->
+    <div class="search-section">
+        <div class="search-input-group">
+            <input 
+                type="text" 
+                id="comparisonQuery" 
+                placeholder="Enter your legal question (e.g., What are fundamental rights?)..."
+                autocomplete="off"
+            >
+            <button class="compare-btn" onclick="getComparison()" id="compareBtn">
+                <i class="fas fa-search"></i>
+                Compare
+            </button>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div class="comparison-results">
+        <div id="comparisonResults"></div>
+    </div>
+
+    <!-- Footer -->
+    <div class="comparison-footer">
+        <p>&copy; 2025 PakLegal - Your Constitutional Law Assistant | Powered by Pakistan's Legal Knowledge Base</p>
+    </div>
+
+    <script>
+        const COMPARISON_ENDPOINT = '/compare-all/';
+
+        async function getComparison() {
+            const query = document.getElementById('comparisonQuery').value.trim();
+            
+            if (!query) {
+                alert('Please enter a legal question');
+                return;
+            }
+
+            const resultsContainer = document.getElementById('comparisonResults');
+            const compareBtn = document.getElementById('compareBtn');
+            
+            // Show loading state
+            resultsContainer.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <div class="loading-text">Getting responses from all legal assistants...</div>
+                </div>
+            `;
+            
+            compareBtn.disabled = true;
+
+            try {
+                const response = await fetch(COMPARISON_ENDPOINT, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: query })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                displayComparison(data);
+            } catch (error) {
+                console.error('Error:', error);
+                resultsContainer.innerHTML = `
+                    <div class="status-error">
+                        <strong>Error:</strong> Failed to get comparisons. Please try again.
+                    </div>
+                `;
+            } finally {
+                compareBtn.disabled = false;
+            }
+        }
+
+        function displayComparison(data) {
+            const resultsContainer = document.getElementById('comparisonResults');
+            
+            const botData = [
+                { key: 'paklegal', name: 'PakLegal', icon: '🏛️', class: 'bot-paklegal', description: 'Fast RAG-based assistant' },
+                { key: 'qanoonmate', name: 'QanoonMate', icon: '⚖️', class: 'bot-qanoonmate', description: 'Focused, precise answers' },
+                { key: 'lexiber', name: 'Lexiber', icon: '📚', class: 'bot-lexiber', description: 'Comprehensive legal insights' },
+                { key: 'lexa', name: 'Lexa', icon: '✨', class: 'bot-lexa', description: 'Specialized legal guidance' },
+                { key: 'pakistan_lawbot', name: 'Pakistan Law Bot', icon: '⚡', class: 'bot-lawbot', description: 'External legal service' }
+            ];
+
+            let html = '<div class="bots-grid">';
+
+            botData.forEach(bot => {
+                const response = data[bot.key] || 'No response';
+                const isError = response.startsWith('Error:');
+                
+                html += `
+                    <div class="bot-card ${bot.class}">
+                        <div class="bot-header">
+                            <div class="bot-icon">${bot.icon}</div>
+                            <div class="bot-info">
+                                <h3>${bot.name}</h3>
+                                <p>${bot.description}</p>
+                            </div>
+                        </div>
+                        <div class="bot-body">
+                            ${isError ? 
+                                `<div class="status-error">${escapeHtml(response)}</div>` :
+                                `<div class="bot-response">${formatResponse(response)}</div>`
+                            }
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+            resultsContainer.innerHTML = html;
+        }
+
+        function formatResponse(text) {
+            // Parse markdown and sanitize
+            let formatted = text
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>')
+                .replace(/^(?!<p>|<\/p>)([a-zA-Z])/gm, '<p>$1');
+            
+            if (!formatted.startsWith('<p>')) {
+                formatted = '<p>' + formatted;
+            }
+            if (!formatted.endsWith('</p>')) {
+                formatted = formatted + '</p>';
+            }
+            
+            return formatted;
+        }
+
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        // Allow Enter key to trigger search
+        document.getElementById('comparisonQuery').addEventListener('keypress', function(event) {
+            if (event.key === 'Enter') {
+                getComparison();
+            }
+        });
+
+        // Example queries
+        const exampleQueries = [
+            'What are fundamental rights?',
+            'What is the process of constitutional amendment?',
+            'What are the powers of the President?',
+            'What is the right to information?'
+        ];
+
+        // Show example on page load
+        window.addEventListener('load', function() {
+            const randomExample = exampleQueries[Math.floor(Math.random() * exampleQueries.length)];
+            document.getElementById('comparisonQuery').placeholder = randomExample;
+        });
+    </script>
+</body>
+</html>
