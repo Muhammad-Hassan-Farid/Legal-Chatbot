@@ -1,5 +1,5 @@
 
-# Pakistan-Constitution-Chatbot
+# Legal AI Chatbot
 
 An AI-powered legal chatbot for answering questions about the Constitution of the Islamic Republic of Pakistan. Users can interact via a modern web interface and receive structured, reliable, and beginner-friendly legal information, with answers sourced from the official constitution.
 
